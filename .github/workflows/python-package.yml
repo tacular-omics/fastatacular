@@ -39,7 +39,7 @@ jobs:
         run: uv run ty check src
 
       - name: Test with coverage
-        run: just test-cov codecov-tests
+        run: just test-cov
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -50,9 +50,9 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: tacular-omics/fastatacular
-          report_type: test_results
+          files: junit.xml
           fail_ci_if_error: false
