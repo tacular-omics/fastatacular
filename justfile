@@ -39,9 +39,9 @@ test-file FILE:
 cov:
     uv run pytest tests --cov=src/fastatacular --cov-report=term-missing
 
-# Run tests with coverage (XML for Codecov)
+# Run tests with coverage (XML for Codecov) + JUnit XML for test results
 test-cov:
-    uv run pytest tests --cov=src/fastatacular --cov-report=xml
+    uv run pytest tests --cov=src/fastatacular --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
 # Remove cache and compiled files
 clean:
