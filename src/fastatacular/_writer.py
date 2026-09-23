@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import IO
 
 from fastatacular._models import SequenceEntry
+from fastatacular._parser import _KV_PATTERN
 from fastatacular.errors import FastaWriteError
 
 _SEQ_LINE_WIDTH = 60
@@ -17,15 +18,24 @@ def _build_header_line(entry: SequenceEntry) -> str:
 
     Priority: if ``raw_header`` was preserved during parsing, round-trip it
     exactly. Otherwise rebuild from the structured fields.
+
+    When falling back to ``description`` (``pname`` unset), its ``KEY=value``
+    text is not copied verbatim: the structured fields are written instead, and
+    only keys that no structured field or ``extra`` covers are kept from it.
     """
     if entry.raw_header:
         return f">{entry.raw_header}"
 
     parts: list[str] = [entry.identifier]
+    desc_extra: dict[str, str] = {}
     if entry.pname:
         parts.append(entry.pname)
     elif entry.description:
-        parts.append(entry.description)
+        matches = list(_KV_PATTERN.finditer(entry.description))
+        name = entry.description[: matches[0].start()].rstrip() if matches else entry.description
+        if name:
+            parts.append(name)
+        desc_extra = {m["key"]: m["val"].strip() for m in matches}
 
     if entry.os_name is not None:
         parts.append(f"OS={entry.os_name}")
@@ -39,6 +49,16 @@ def _build_header_line(entry: SequenceEntry) -> str:
         parts.append(f"SV={entry.sv}")
     for k, v in entry.extra.items():
         parts.append(f"{k}={v}")
+    typed = {
+        "OS": entry.os_name,
+        "OX": entry.ncbi_tax_id,
+        "GN": entry.gname,
+        "PE": entry.pe,
+        "SV": entry.sv,
+    }
+    for k, v in desc_extra.items():
+        if typed.get(k) is None and k not in entry.extra:
+            parts.append(f"{k}={v}")
 
     return ">" + " ".join(parts)
 

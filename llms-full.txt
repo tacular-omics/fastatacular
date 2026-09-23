@@ -104,8 +104,8 @@ importable but its names are re-exported at the top level).
 
 | field        | type             | meaning                                                                 |
 |--------------|------------------|-------------------------------------------------------------------------|
-| identifier   | str              | text after `>` up to the first space, e.g. `sp|P12345|EX_HUMAN`         |
-| sequence     | str              | sequence lines, each stripped, concatenated                             |
+| identifier   | str              | text after `>` up to first whitespace, e.g. `sp|P12345|EX_HUMAN`        |
+| sequence     | str              | sequence lines with all whitespace removed, concatenated                |
 | prefix       | str or None      | database tag of a pipe id: `sp`, `tr`, `gi`, ...                        |
 | accession    | str or None      | second pipe field: `P12345` in `sp|P12345|EX_HUMAN`                     |
 | entry_name   | str or None      | third field, only for exactly-three-field ids `db|ACC|NAME`             |
@@ -236,8 +236,8 @@ parse as int are kept as strings in `extra` rather than raising.
 - Blank lines are skipped anywhere.
 - Lines starting with `;` (legacy/NCBI comments) are skipped anywhere.
 - Windows line endings (`\r\n`) are handled.
-- Each sequence line is `.strip()`ped, then lines are joined. Internal spaces inside a
-  line are kept, and residue letters are not upper-cased or validated; `*` and `-` are
+- All whitespace (including internal spaces and tabs) is removed from each sequence
+  line, then lines are joined. Residue letters are not upper-cased or validated; `*` and `-` are
   kept as-is.
 
     >>> [y.identifier for y in read_fasta(io.StringIO(";comment\n>a\n\nMK\n\n>b\r\nPE\r\n"))]
@@ -274,7 +274,8 @@ When `raw_header` is empty the header is rebuilt as:
     >{identifier} {pname or description} OS=.. OX=.. GN=.. PE=.. SV=.. {extra KEY=value ...}
 
 in exactly that order, skipping fields that are None (and the name if both `pname` and
-`description` are empty). `pname` is preferred over `description`.
+`description` are empty). `pname` is preferred over `description`; from `description`
+only the text before the first KEY=value is used as the name.
 
 To a path:
 
@@ -330,11 +331,11 @@ enough; clear `raw_header` as well:
     >>> out.getvalue().splitlines()[0]
     '>sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=NEW1 PE=1 SV=2'
 
-This works because the parsed entry has `pname`. For a parsed entry whose `pname` is
-None but whose `description` holds KEY=value text, the rebuilt header repeats the keys
-(see Gotchas); set `description=None` too in that case.
+For a parsed entry whose `pname` is None, the name text of `description` (before its
+first KEY=value) is used, and the keys come from the structured fields, so they are not
+repeated.
 
-    >>> e2 = dataclasses.replace(one(">x OS=Homo sapiens GN=A\nA\n"), raw_header="", description=None)
+    >>> e2 = dataclasses.replace(one(">x OS=Homo sapiens GN=A\nA\n"), raw_header="")
     >>> out = io.StringIO(); write_fasta([e2], out)
     >>> out.getvalue().splitlines()[0]
     '>x OS=Homo sapiens GN=A'
@@ -454,12 +455,12 @@ Gzipped input: open it yourself in text mode and pass the handle.
    FileNotFoundError. Wrap FASTA text in io.StringIO.
 2. `raw_header` takes priority on write. Parsed entries always have it; clear it
    (`raw_header=""`) if you changed fields and want them written.
-3. When `raw_header` is empty and `pname` is None, the writer uses `description`, which
-   for parsed entries already contains the KEY=value text, then appends the structured
-   keys again, duplicating them. Set `description=None` (or a key-free `pname`) first.
-4. The identifier is the text before the first space character only. A tab after the
-   identifier is not a separator: `>x\tdesc` gives identifier `'x\tdesc'`.
-5. Sequence lines are stripped at the ends only; internal whitespace is kept. No case
+3. When `raw_header` is empty and `pname` is None, the writer uses the name text of
+   `description` (before its first KEY=value); keys come from the structured fields
+   and `extra`, not copied from `description`.
+4. The identifier is the text before the first whitespace (space or tab):
+   `>x\tdesc` gives identifier `'x'`.
+5. All whitespace is removed from sequence lines, including internal spaces. No case
    folding and no alphabet check: DNA, RNA, protein, lower case, `*`, `-` all pass.
 6. `description` includes the KEY=value text; use `pname` for just the name.
 7. `entry_name` is only set for exactly three pipe fields with no spaces in the third;

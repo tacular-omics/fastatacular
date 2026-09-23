@@ -112,3 +112,17 @@ def test_invalid_ox_falls_back_to_extra():
     [e] = _read_str(">id name OX=notanumber\nACDE\n")
     assert e.ncbi_tax_id is None
     assert e.extra == {"OX": "notanumber"}
+
+
+def test_tab_separates_identifier_from_description():
+    (entry,) = _read_str(">sp|P12345|EX_HUMAN\tExample protein OS=Homo sapiens\nMK\n")
+    assert entry.identifier == "sp|P12345|EX_HUMAN"
+    assert entry.entry_name == "EX_HUMAN"
+    assert entry.pname == "Example protein"
+    assert entry.os_name == "Homo sapiens"
+    assert entry.raw_header == "sp|P12345|EX_HUMAN\tExample protein OS=Homo sapiens"
+
+
+def test_internal_whitespace_in_sequence_lines_is_removed():
+    (entry,) = _read_str(">x\nA C\tD\nE  F\n")
+    assert entry.sequence == "ACDEF"

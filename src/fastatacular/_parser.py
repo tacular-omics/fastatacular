@@ -52,8 +52,10 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
     if not stripped:
         raise FastaParseError("Empty FASTA header", line=line_no, context=line)
 
-    identifier, _, rest = stripped.partition(" ")
-    rest = rest.strip()
+    # Split on the first run of any whitespace (space or tab), as UniProt, BLAST,
+    # Biopython and samtools do.
+    identifier, *tail = stripped.split(maxsplit=1)
+    rest = tail[0] if tail else ""
 
     header = _ParsedHeader(identifier=identifier, raw_header=raw)
 
@@ -156,7 +158,7 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
                     line=line_no,
                     context=line.rstrip("\n"),
                 )
-            seq_chunks.append(line.strip())
+            seq_chunks.append("".join(line.split()))
 
     if header is not None:
         yield _build_entry(header, seq_chunks, header_line_no)
