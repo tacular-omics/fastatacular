@@ -1,0 +1,489 @@
+# fastatacular
+
+> Small, dependency-free Python library (>= 3.12) for reading and writing FASTA
+> sequence files, with UniProt-style header keys and pipe-delimited identifiers
+> parsed into typed fields.
+
+This is the complete usage guide for fastatacular 0.1.x, written for AI agents and
+people who want one self-contained reference. Every example below is a runnable
+doctest.
+
+Repository: https://github.com/tacular-omics/fastatacular
+PyPI: https://pypi.org/project/fastatacular/
+DOI: https://doi.org/10.5281/zenodo.22926358
+License: MIT
+
+
+## 1. Install
+
+    pip install fastatacular
+    # or
+    uv add fastatacular
+
+No runtime dependencies. Requires Python 3.12 or newer. Pure Python; works on Linux,
+macOS and Windows. Files are read and written as UTF-8.
+
+
+## 2. Public API at a glance
+
+Everything public is importable from the top-level package:
+
+    from fastatacular import (
+        read_fasta,        # read a whole FASTA file into a list
+        FastaReader,       # stream entries lazily (context manager)
+        write_fasta,       # write entries to a path or text handle
+        SequenceEntry,     # frozen dataclass, one per FASTA record
+        FastaParseError,   # raised on malformed input (ValueError subclass)
+        FastaWriteError,   # raised on unwritable entries (ValueError subclass)
+    )
+    import fastatacular
+    fastatacular.__version__   # e.g. "0.1.2"
+
+There is no CLI and no logging. There are no submodules you need to import directly
+(`fastatacular._parser`, `._writer`, `._models` are private; `fastatacular.errors` is
+importable but its names are re-exported at the top level).
+
+
+## 3. Signatures
+
+    read_fasta(source: str | Path | IO[str]) -> list[SequenceEntry]
+
+        Read an entire FASTA file into a list of SequenceEntry objects.
+        `source` is a filesystem path (str or pathlib.Path), opened as UTF-8, or an
+        already-open text-mode file object (anything iterable over lines, e.g.
+        io.StringIO or open(...)). A handle you pass in is not closed.
+
+    class FastaReader(source: str | Path | IO[str])
+
+        Iterate over a FASTA file lazily without loading the entire file.
+        Must be used as a context manager:
+            with FastaReader(path) as reader:
+                for entry in reader: ...
+        __enter__ opens the path (UTF-8) if `source` is a str/Path, or uses the
+        handle as-is. __exit__ closes the file only if FastaReader opened it.
+        Iterating outside the `with` block raises RuntimeError.
+
+    write_fasta(entries: Iterable[SequenceEntry],
+                dest: str | Path | IO[str],
+                *, line_width: int = 60) -> None
+
+        Write entries to FASTA. `dest` is a path (opened "w", UTF-8, overwriting)
+        or an open text-mode file object (written to, not closed). `entries` can be
+        any iterable, including a generator. `line_width` wraps sequence lines;
+        0 or any value <= 0 writes each sequence on a single line.
+
+    @dataclass(frozen=True, slots=True)
+    class SequenceEntry(
+        identifier: str,
+        sequence: str,
+        prefix: str | None = None,
+        accession: str | None = None,
+        entry_name: str | None = None,
+        description: str | None = None,
+        pname: str | None = None,
+        gname: str | None = None,
+        os_name: str | None = None,
+        ncbi_tax_id: int | None = None,
+        pe: int | None = None,
+        sv: int | None = None,
+        extra: dict[str, str] = {},      # default_factory=dict
+        raw_header: str = "",
+    )
+
+    class FastaParseError(ValueError)
+        __init__(message: str, *, line: int | None = None, context: str | None = None)
+        .line     1-based line number of the problem (or None)
+        .context  the offending line text (or None)
+        str(err)  "Line {line}: {message}" when line is given, else message
+
+    class FastaWriteError(ValueError)
+        Plain ValueError subclass, constructed with a message.
+
+
+## 4. SequenceEntry fields
+
+| field        | type             | meaning                                                                 |
+|--------------|------------------|-------------------------------------------------------------------------|
+| identifier   | str              | text after `>` up to the first space, e.g. `sp|P12345|EX_HUMAN`         |
+| sequence     | str              | sequence lines, each stripped, concatenated                             |
+| prefix       | str or None      | database tag of a pipe id: `sp`, `tr`, `gi`, ...                        |
+| accession    | str or None      | second pipe field: `P12345` in `sp|P12345|EX_HUMAN`                     |
+| entry_name   | str or None      | third field, only for exactly-three-field ids `db|ACC|NAME`             |
+| description  | str or None      | full text after the identifier, including any KEY=value pairs          |
+| pname        | str or None      | protein name: description text before the first KEY=value              |
+| gname        | str or None      | `GN=` gene name                                                         |
+| os_name      | str or None      | `OS=` organism name                                                     |
+| ncbi_tax_id  | int or None      | `OX=` NCBI taxonomy id                                                  |
+| pe           | int or None      | `PE=` protein existence level (1-5 in UniProt)                          |
+| sv           | int or None      | `SV=` sequence version                                                  |
+| extra        | dict[str, str]   | every other KEY=value pair, plus OX/PE/SV values that are not integers |
+| raw_header   | str              | the original header line without `>` and line ending                   |
+
+Entries are frozen: assigning a field raises dataclasses.FrozenInstanceError. Use
+dataclasses.replace() to derive a modified copy. Entries compare by value (==) but are
+not hashable, because `extra` is a dict.
+
+
+## 5. Reading
+
+### 5.1 Read a whole file
+
+    >>> import io
+    >>> from fastatacular import read_fasta
+    >>> text = (
+    ...     ">sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=EXMP PE=1 SV=2\n"
+    ...     "MKTIIALSYI\n"
+    ...     "FCLVFA\n"
+    ...     ">tr|Q00001|Q00001_MOUSE Another one OS=Mus musculus OX=10090 PE=4 SV=1\n"
+    ...     "MAAAK\n"
+    ... )
+    >>> entries = read_fasta(io.StringIO(text))
+    >>> len(entries)
+    2
+    >>> e = entries[0]
+    >>> e.identifier
+    'sp|P12345|EX_HUMAN'
+    >>> e.sequence
+    'MKTIIALSYIFCLVFA'
+    >>> (e.prefix, e.accession, e.entry_name)
+    ('sp', 'P12345', 'EX_HUMAN')
+    >>> e.pname
+    'Example protein'
+    >>> (e.os_name, e.ncbi_tax_id, e.gname, e.pe, e.sv)
+    ('Homo sapiens', 9606, 'EXMP', 1, 2)
+    >>> e.description
+    'Example protein OS=Homo sapiens OX=9606 GN=EXMP PE=1 SV=2'
+    >>> e.raw_header
+    'sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=EXMP PE=1 SV=2'
+    >>> entries[1].gname is None
+    True
+
+With a real file, pass the path (str or pathlib.Path):
+
+    entries = read_fasta("proteins.fasta")
+    entries = read_fasta(Path("proteins.fasta"))
+
+### 5.2 Stream lazily
+
+FastaReader yields one entry at a time, so memory use does not grow with file size.
+
+    >>> from fastatacular import FastaReader
+    >>> with FastaReader(io.StringIO(text)) as reader:
+    ...     for entry in reader:
+    ...         print(entry.accession, len(entry.sequence))
+    P12345 16
+    Q00001 5
+
+Typical use on disk:
+
+    with FastaReader("uniprot_sprot.fasta") as reader:
+        human = [e for e in reader if e.ncbi_tax_id == 9606]
+
+Using the reader without `with` fails:
+
+    >>> r = FastaReader(io.StringIO(text))
+    >>> iter(r)
+    Traceback (most recent call last):
+    ...
+    RuntimeError: FastaReader must be used as a context manager (`with FastaReader(...) as r:`)
+
+### 5.3 Identifier shapes
+
+    >>> def one(s):
+    ...     return read_fasta(io.StringIO(s))[0]
+
+UniProt `db|ACCESSION|ENTRY_NAME`:
+
+    >>> x = one(">sp|P69905|HBA_HUMAN Hemoglobin subunit alpha\nMVLS\n")
+    >>> (x.prefix, x.accession, x.entry_name, x.pname)
+    ('sp', 'P69905', 'HBA_HUMAN', 'Hemoglobin subunit alpha')
+
+NCBI-style `db|ID|...` (only prefix and accession are taken):
+
+    >>> x = one(">gi|12345|ref|NP_000001.1| some protein\nAAA\n")
+    >>> (x.identifier, x.prefix, x.accession, x.entry_name)
+    ('gi|12345|ref|NP_000001.1|', 'gi', '12345', None)
+
+Plain identifier, no description:
+
+    >>> x = one(">contig_7\nACGTACGT\n")
+    >>> (x.identifier, x.prefix, x.accession, x.description, x.pname)
+    ('contig_7', None, None, None, None)
+
+Plain identifier with free-text description (no KEY=value pairs):
+
+    >>> x = one(">seq1 my favourite protein\nMK\n")
+    >>> (x.description, x.pname, x.extra)
+    ('my favourite protein', 'my favourite protein', {})
+
+### 5.4 KEY=value parsing
+
+A KEY is `[A-Za-z_][A-Za-z0-9_]*`. A value runs until the next ` KEY=` token or the end
+of the line, so values may contain spaces (`OS=Homo sapiens`). The five UniProt keys go
+into typed fields; anything else lands in `extra`. Integer keys (OX, PE, SV) that do not
+parse as int are kept as strings in `extra` rather than raising.
+
+    >>> x = one(">x OX=abc FOO=bar baz\nA\n")
+    >>> (x.ncbi_tax_id, x.extra)
+    (None, {'OX': 'abc', 'FOO': 'bar baz'})
+    >>> x.pname is None
+    True
+
+`pname` is None when the description starts with a KEY=value pair.
+
+### 5.5 What the reader skips and keeps
+
+- Blank lines are skipped anywhere.
+- Lines starting with `;` (legacy/NCBI comments) are skipped anywhere.
+- Windows line endings (`\r\n`) are handled.
+- Each sequence line is `.strip()`ped, then lines are joined. Internal spaces inside a
+  line are kept, and residue letters are not upper-cased or validated; `*` and `-` are
+  kept as-is.
+
+    >>> [y.identifier for y in read_fasta(io.StringIO(";comment\n>a\n\nMK\n\n>b\r\nPE\r\n"))]
+    ['a', 'b']
+    >>> one(">x\nmk*\n").sequence
+    'mk*'
+
+
+## 6. Writing
+
+### 6.1 Build entries and write
+
+    >>> from fastatacular import SequenceEntry, write_fasta
+    >>> new = SequenceEntry(
+    ...     identifier="sp|P12345|EX_HUMAN",
+    ...     sequence="M" + "A" * 64,
+    ...     pname="Example protein",
+    ...     os_name="Homo sapiens",
+    ...     ncbi_tax_id=9606,
+    ...     gname="EXMP",
+    ...     pe=1,
+    ...     sv=2,
+    ...     extra={"TAG": "demo"},
+    ... )
+    >>> out = io.StringIO()
+    >>> write_fasta([new], out)
+    >>> print(out.getvalue(), end="")
+    >sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=EXMP PE=1 SV=2 TAG=demo
+    MAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+    AAAAA
+
+When `raw_header` is empty the header is rebuilt as:
+
+    >{identifier} {pname or description} OS=.. OX=.. GN=.. PE=.. SV=.. {extra KEY=value ...}
+
+in exactly that order, skipping fields that are None (and the name if both `pname` and
+`description` are empty). `pname` is preferred over `description`.
+
+To a path:
+
+    write_fasta(entries, "out.fasta")            # overwrites
+    write_fasta(entries, Path("out.fasta"))
+
+### 6.2 Line width
+
+    >>> out = io.StringIO()
+    >>> write_fasta([SequenceEntry("s", "ACDEFGHIK")], out, line_width=4)
+    >>> print(out.getvalue(), end="")
+    >s
+    ACDE
+    FGHI
+    K
+    >>> out = io.StringIO()
+    >>> write_fasta([SequenceEntry("s", "ACDEFGHIK")], out, line_width=0)
+    >>> print(out.getvalue(), end="")
+    >s
+    ACDEFGHIK
+
+### 6.3 Round trip
+
+Entries produced by the reader carry `raw_header`, so writing them reproduces the header
+line exactly. Sequences are re-wrapped at `line_width`, so the sequence line layout of
+the original file is not preserved, but reading the output gives equal entries.
+
+    >>> out = io.StringIO()
+    >>> write_fasta(entries, out)
+    >>> read_fasta(io.StringIO(out.getvalue())) == entries
+    True
+
+### 6.4 Filtering and transforming a file (streaming in, streaming out)
+
+`write_fasta` accepts any iterable, so a generator over a FastaReader processes a file of
+any size in constant memory:
+
+    with FastaReader("in.fasta") as reader, open("out.fasta", "w", encoding="utf-8") as fh:
+        write_fasta((e for e in reader if e.pe == 1), fh)
+
+### 6.5 Editing parsed entries
+
+Because `raw_header` wins on write, changing a structured field on a parsed entry is not
+enough; clear `raw_header` as well:
+
+    >>> import dataclasses
+    >>> edited = dataclasses.replace(entries[0], gname="NEW1")
+    >>> out = io.StringIO(); write_fasta([edited], out)
+    >>> out.getvalue().splitlines()[0]
+    '>sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=EXMP PE=1 SV=2'
+    >>> edited = dataclasses.replace(entries[0], gname="NEW1", raw_header="")
+    >>> out = io.StringIO(); write_fasta([edited], out)
+    >>> out.getvalue().splitlines()[0]
+    '>sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=NEW1 PE=1 SV=2'
+
+This works because the parsed entry has `pname`. For a parsed entry whose `pname` is
+None but whose `description` holds KEY=value text, the rebuilt header repeats the keys
+(see Gotchas); set `description=None` too in that case.
+
+    >>> e2 = dataclasses.replace(one(">x OS=Homo sapiens GN=A\nA\n"), raw_header="", description=None)
+    >>> out = io.StringIO(); write_fasta([e2], out)
+    >>> out.getvalue().splitlines()[0]
+    '>x OS=Homo sapiens GN=A'
+
+
+## 7. Errors
+
+### 7.1 FastaParseError
+
+Raised by `read_fasta` and during iteration of `FastaReader`. It subclasses ValueError.
+The message starts with `Line N: `; `.line` is the 1-based line number and `.context`
+the offending text.
+
+    >>> from fastatacular import FastaParseError
+    >>> try:
+    ...     read_fasta(io.StringIO("MKT\n>x\nA\n"))
+    ... except FastaParseError as err:
+    ...     print(err, "|", err.line, "|", err.context)
+    Line 1: Sequence data appears before any '>' header | 1 | MKT
+
+Cases that raise:
+
+| input                                         | message                                    |
+|-----------------------------------------------|--------------------------------------------|
+| sequence line before the first `>`            | Sequence data appears before any '>' header|
+| a `>` line with nothing after it (or spaces)  | Empty FASTA header                         |
+| a header with no sequence lines (any entry,   | Entry 'ID' has no sequence data            |
+| including the last one in the file)           | (line = the header's line number)          |
+
+    >>> try:
+    ...     read_fasta(io.StringIO(">a\nMK\n>b\n>c\nPE\n"))
+    ... except FastaParseError as err:
+    ...     print(err.line, err)
+    3 Line 3: Entry 'b' has no sequence data
+
+With FastaReader the error is raised lazily: entries before the bad one are yielded
+first.
+
+    >>> with FastaReader(io.StringIO(">a\nMK\n>b\n>c\nPE\n")) as reader:
+    ...     it = iter(reader)
+    ...     print(next(it).identifier)
+    ...     try:
+    ...         next(it)
+    ...     except FastaParseError as err:
+    ...         print("error at line", err.line)
+    a
+    error at line 3
+
+A missing file raises the usual FileNotFoundError / OSError, not FastaParseError.
+
+### 7.2 FastaWriteError
+
+    >>> from fastatacular import FastaWriteError
+    >>> try:
+    ...     write_fasta([SequenceEntry("x", "")], io.StringIO())
+    ... except FastaWriteError as err:
+    ...     print(err)
+    SequenceEntry 'x' has an empty sequence
+    >>> try:
+    ...     write_fasta([SequenceEntry("", "MK")], io.StringIO())
+    ... except FastaWriteError as err:
+    ...     print(err)
+    SequenceEntry has an empty identifier
+
+Entries are written one by one; if a later entry fails, earlier ones have already been
+written to `dest`.
+
+Catch both with `except ValueError` if you do not care which.
+
+
+## 8. Recipes
+
+Accession -> sequence map:
+
+    >>> {e.accession: e.sequence for e in entries}
+    {'P12345': 'MKTIIALSYIFCLVFA', 'Q00001': 'MAAAK'}
+
+Count entries per organism while streaming:
+
+    from collections import Counter
+    with FastaReader("uniprot.fasta") as reader:
+        counts = Counter(e.os_name for e in reader)
+
+Keep reviewed (Swiss-Prot) entries only:
+
+    >>> [e.entry_name for e in entries if e.prefix == "sp"]
+    ['EX_HUMAN']
+
+Decoy database (reversed sequences, new identifiers, no raw_header):
+
+    >>> decoys = [
+    ...     SequenceEntry(identifier=f"rev_{e.identifier}", sequence=e.sequence[::-1])
+    ...     for e in entries
+    ... ]
+    >>> out = io.StringIO(); write_fasta(entries + decoys, out, line_width=0)
+    >>> print(out.getvalue().splitlines()[4])
+    >rev_sp|P12345|EX_HUMAN
+
+Note that `rev_sp|P12345|EX_HUMAN` is not parsed as a pipe id on re-read: the prefix
+must match `[A-Za-z0-9]+` and `rev_sp` contains `_`, so prefix, accession and
+entry_name are all None. Use an alphanumeric decoy tag (e.g. `REV`) if you need them.
+
+    >>> one(">rev_sp|P12345|EX_HUMAN\nA\n").accession is None
+    True
+
+Gzipped input: open it yourself in text mode and pass the handle.
+
+    import gzip
+    with gzip.open("uniprot.fasta.gz", "rt", encoding="utf-8") as fh:
+        with FastaReader(fh) as reader:
+            for e in reader: ...
+
+
+## 9. Gotchas
+
+1. A `str` argument is always treated as a file path. `read_fasta(">x\nA\n")` raises
+   FileNotFoundError. Wrap FASTA text in io.StringIO.
+2. `raw_header` takes priority on write. Parsed entries always have it; clear it
+   (`raw_header=""`) if you changed fields and want them written.
+3. When `raw_header` is empty and `pname` is None, the writer uses `description`, which
+   for parsed entries already contains the KEY=value text, then appends the structured
+   keys again, duplicating them. Set `description=None` (or a key-free `pname`) first.
+4. The identifier is the text before the first space character only. A tab after the
+   identifier is not a separator: `>x\tdesc` gives identifier `'x\tdesc'`.
+5. Sequence lines are stripped at the ends only; internal whitespace is kept. No case
+   folding and no alphabet check: DNA, RNA, protein, lower case, `*`, `-` all pass.
+6. `description` includes the KEY=value text; use `pname` for just the name.
+7. `entry_name` is only set for exactly three pipe fields with no spaces in the third;
+   `accession` is the second field.
+8. Non-integer OX/PE/SV values go into `extra` as strings instead of raising.
+9. Duplicate keys: the last occurrence wins (typed field or `extra` entry overwritten).
+10. SequenceEntry is frozen and unhashable; use `dataclasses.replace` to modify and
+    key dicts by `identifier`/`accession`, not by the entry.
+11. Entries with an empty sequence cannot be read (FastaParseError) or written
+    (FastaWriteError).
+12. Encoding is fixed to UTF-8 for paths. For other encodings open the file yourself
+    and pass the handle.
+
+
+## 10. Related packages
+
+- pefftacular (https://github.com/tacular-omics/pefftacular): PEFF (PSI Extended FASTA)
+  reader/writer with the same API shape (`read_peff`, `PeffReader`, `write_peff`).
+- tacular-omics (https://github.com/tacular-omics): the family of proteomics packages
+  this belongs to (tacular, peptacular, paftacular, spxtacular, ...).
+
+
+## 11. Citation
+
+Cite the archived release: DOI 10.5281/zenodo.22926358
+(https://doi.org/10.5281/zenodo.22926358). Machine-readable metadata is in CITATION.cff
+in the repository.

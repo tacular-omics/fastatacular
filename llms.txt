@@ -1,0 +1,36 @@
+# fastatacular
+
+> Small, dependency-free Python library (>= 3.12) for reading and writing FASTA
+> sequence files, with UniProt-style header keys and pipe-delimited identifiers
+> parsed into typed fields.
+
+`read_fasta(path)` returns a list of frozen `SequenceEntry` objects; `FastaReader` streams
+them lazily inside a `with` block; `write_fasta(entries, path)` writes them back, reusing
+each entry's original header verbatim. UniProt headers such as
+`>sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=EXMP PE=1 SV=2` become
+`prefix`, `accession`, `entry_name`, `pname`, `os_name`, `ncbi_tax_id`, `gname`, `pe`,
+`sv` fields. Malformed input raises `FastaParseError` with the line number.
+
+Install with `pip install fastatacular`. A `str` argument is always a file path; pass
+FASTA text as `io.StringIO`. Sibling package for PEFF files: `pefftacular`.
+
+## Docs
+
+- [llms-full.txt](https://raw.githubusercontent.com/tacular-omics/fastatacular/main/llms-full.txt): complete usage guide with every public name, signatures, examples and gotchas
+- [README](https://github.com/tacular-omics/fastatacular/blob/main/README.md): overview, quick start, data model table
+- [CHANGELOG](https://github.com/tacular-omics/fastatacular/blob/main/CHANGELOG.md): release history
+
+## API
+
+- [`__init__.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/__init__.py): public exports (`read_fasta`, `FastaReader`, `write_fasta`, `SequenceEntry`, `FastaParseError`, `FastaWriteError`)
+- [`_models.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_models.py): `SequenceEntry` fields
+- [`_parser.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_parser.py): reader and header parsing rules
+- [`_writer.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_writer.py): writer and header rebuild rules
+
+## Optional
+
+- [GitHub repository](https://github.com/tacular-omics/fastatacular)
+- [PyPI package](https://pypi.org/project/fastatacular/)
+- [Zenodo DOI 10.5281/zenodo.22926358](https://doi.org/10.5281/zenodo.22926358): citable archive
+- [pefftacular](https://github.com/tacular-omics/pefftacular): sibling library for PEFF (PSI Extended FASTA) with the same API shape
+- [UniProt FASTA header format](https://www.uniprot.org/help/fasta-headers): the header convention parsed here
