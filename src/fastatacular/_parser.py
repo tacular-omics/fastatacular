@@ -140,7 +140,10 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
     header_line_no: int = 0
 
     for line_no, line in enumerate(fh, start=1):
-        if not line or line[0] in ("\n", "\r"):
+        if line_no == 1 and line.startswith("\ufeff"):
+            # UTF-8 byte-order mark read through a plain ``utf-8`` text handle.
+            line = line[1:]
+        if not line or line.isspace():
             continue
         if line.startswith(";"):
             # Comment line (NCBI / legacy FASTA convention) — skip.
@@ -174,7 +177,7 @@ class FastaReader:
 
     def __enter__(self) -> FastaReader:
         if isinstance(self._source, (str, Path)):
-            self._fh = Path(self._source).open(encoding="utf-8")
+            self._fh = Path(self._source).open(encoding="utf-8-sig")
             self._owns_fh = True
         else:
             self._fh = self._source
@@ -200,7 +203,7 @@ class FastaReader:
 def read_fasta(source: str | Path | IO[str]) -> list[SequenceEntry]:
     """Read an entire FASTA file into a list of ``SequenceEntry`` objects."""
     if isinstance(source, (str, Path)):
-        with Path(source).open(encoding="utf-8") as fh:
+        with Path(source).open(encoding="utf-8-sig") as fh:
             return list(_iter_entries(fh))
     return list(_iter_entries(source))
 

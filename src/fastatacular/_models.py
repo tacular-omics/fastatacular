@@ -24,6 +24,8 @@ class SequenceEntry:
         sv:          sequence version (``SV=``).
         extra:       any other ``KEY=value`` pairs found in the header.
         raw_header:  the original header line text (without the leading ``>``).
+                     The writer emits it verbatim only while it still parses to
+                     the fields above; after an edit the header is rebuilt.
     """
 
     identifier: str

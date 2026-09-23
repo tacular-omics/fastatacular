@@ -269,7 +269,7 @@ parse as int are kept as strings in `extra` rather than raising.
     MAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     AAAAA
 
-When `raw_header` is empty the header is rebuilt as:
+When `raw_header` is empty, or no longer matches the entry's fields, the header is rebuilt as:
 
     >{identifier} {pname or description} OS=.. OX=.. GN=.. PE=.. SV=.. {extra KEY=value ...}
 
@@ -318,15 +318,11 @@ any size in constant memory:
 
 ### 6.5 Editing parsed entries
 
-Because `raw_header` wins on write, changing a structured field on a parsed entry is not
-enough; clear `raw_header` as well:
+The writer uses `raw_header` only while re-parsing it gives the entry's current fields.
+Change a structured field and the header is rebuilt, so the edit is written:
 
     >>> import dataclasses
     >>> edited = dataclasses.replace(entries[0], gname="NEW1")
-    >>> out = io.StringIO(); write_fasta([edited], out)
-    >>> out.getvalue().splitlines()[0]
-    '>sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=EXMP PE=1 SV=2'
-    >>> edited = dataclasses.replace(entries[0], gname="NEW1", raw_header="")
     >>> out = io.StringIO(); write_fasta([edited], out)
     >>> out.getvalue().splitlines()[0]
     '>sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=NEW1 PE=1 SV=2'
@@ -453,8 +449,9 @@ Gzipped input: open it yourself in text mode and pass the handle.
 
 1. A `str` argument is always treated as a file path. `read_fasta(">x\nA\n")` raises
    FileNotFoundError. Wrap FASTA text in io.StringIO.
-2. `raw_header` takes priority on write. Parsed entries always have it; clear it
-   (`raw_header=""`) if you changed fields and want them written.
+2. `raw_header` is written verbatim only while it still parses to the entry's fields.
+   Edit a field (`dataclasses.replace`) and the header is rebuilt from the fields;
+   a hand-built `raw_header` that disagrees with them is ignored.
 3. When `raw_header` is empty and `pname` is None, the writer uses the name text of
    `description` (before its first KEY=value); keys come from the structured fields
    and `extra`, not copied from `description`.

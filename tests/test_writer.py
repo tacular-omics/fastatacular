@@ -59,13 +59,18 @@ def test_write_no_wrap_when_line_width_zero():
 
 
 def test_raw_header_round_trips_exactly():
+    (entry,) = read_fasta(io.StringIO(">sp|P00001|FOO Original header text OS=Mus OX=10090\nAAA\n"))
+    out = _write_str([entry])
+    assert out.startswith(">sp|P00001|FOO Original header text OS=Mus OX=10090\n")
+
+
+def test_raw_header_that_disagrees_with_fields_is_ignored():
     entry = SequenceEntry(
         identifier="anything",
         sequence="AAA",
         raw_header="sp|P00001|FOO Original header text OS=Mus OX=10090",
     )
-    out = _write_str([entry])
-    assert out.startswith(">sp|P00001|FOO Original header text OS=Mus OX=10090\n")
+    assert _write_str([entry]) == ">anything\nAAA\n"
 
 
 def test_write_empty_identifier_raises():
@@ -107,3 +112,32 @@ def test_rebuild_from_description_uses_structured_fields_and_keeps_name():
         gname="G",
     )
     assert _write_str([entry]) == ">x Some protein OS=Homo sapiens GN=G XY=1\nA\n"
+
+
+_UNIPROT = ">sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=ABC PE=1 SV=2\nACDE\n"
+
+
+def test_unedited_parsed_entry_writes_raw_header_byte_exact():
+    src = ">sp|P12345|EX_HUMAN  Example   protein\tOS=Homo sapiens  GN=ABC \nACDE\n"
+    (parsed,) = read_fasta(io.StringIO(src))
+    assert _write_str([parsed]) == src
+
+
+def test_edited_structured_field_wins_over_raw_header():
+    (parsed,) = read_fasta(io.StringIO(_UNIPROT))
+    edited = dataclasses.replace(parsed, gname="XYZ")
+    assert _write_str([edited]).splitlines()[0] == (
+        ">sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=XYZ PE=1 SV=2"
+    )
+
+
+def test_edited_identifier_wins_over_raw_header():
+    (parsed,) = read_fasta(io.StringIO(">x some protein GN=A\nACDE\n"))
+    edited = dataclasses.replace(parsed, identifier="DECOY_x")
+    assert _write_str([edited]).splitlines()[0] == ">DECOY_x some protein GN=A"
+
+
+def test_edited_extra_wins_over_raw_header():
+    (parsed,) = read_fasta(io.StringIO(">x name FOO=1\nACDE\n"))
+    edited = dataclasses.replace(parsed, extra={"FOO": "2"})
+    assert _write_str([edited]).splitlines()[0] == ">x name FOO=2"

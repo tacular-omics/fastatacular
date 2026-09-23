@@ -49,7 +49,7 @@ src/fastatacular/
   _models.py    # SequenceEntry: frozen, slotted dataclass, one per FASTA record
   _parser.py    # header regexes, _parse_header_line, _iter_entries (the streaming core),
                 # FastaReader (context manager) and read_fasta (eager list)
-  _writer.py    # _build_header_line (raw_header first, else rebuild), write_fasta
+  _writer.py    # _build_header_line (raw_header if it still matches the fields, else rebuild), write_fasta
   errors.py     # FastaParseError(ValueError) with .line/.context; FastaWriteError(ValueError)
 tests/
   test_basic.py      # version smoke test
@@ -66,7 +66,7 @@ Data flow (read): text lines -> `_iter_entries` skips blank lines and `;` commen
 `_build_entry` makes a `SequenceEntry`, raising if the sequence is empty.
 
 Data flow (write): `_write_entry` validates identifier/sequence -> header is
-`raw_header` verbatim if non-empty, else rebuilt as
+`raw_header` verbatim if non-empty and it still parses to the entry's fields, else rebuilt as
 `identifier [pname|description] OS= OX= GN= PE= SV= extra...` -> sequence wrapped at
 `line_width` (default 60, `<= 0` means one line).
 
@@ -102,9 +102,11 @@ Exported from `fastatacular` (`__all__`):
 
 - **A `str` argument is always a file path.** `read_fasta(">x\nA\n")` raises
   `FileNotFoundError`; wrap FASTA text in `io.StringIO`.
-- **`raw_header` wins on write.** Every parsed entry has `raw_header` set, so
-  `dataclasses.replace(entry, gname="X")` writes the *old* header. Also clear
-  `raw_header=""` to have edits take effect.
+- **`raw_header` is written only while it matches.** The writer re-parses
+  `raw_header`; if that gives the entry's current fields it is written verbatim
+  (byte-exact round trip), otherwise the header is rebuilt, so
+  `dataclasses.replace(entry, gname="X")` writes `GN=X`. A hand-built `raw_header`
+  that disagrees with the fields is ignored.
 - **Header rebuild from `description`.** When `raw_header` is empty and `pname` is
   `None`, the writer uses the name text of `description` (before its first `KEY=`),
   then the structured fields and `extra`; `KEY=value` pairs in `description` are only
@@ -121,7 +123,7 @@ Exported from `fastatacular` (`__all__`):
 - `FastaReader` errors are raised lazily, at the bad entry during iteration, not on
   open. Calling `iter()` outside `with` raises `RuntimeError`.
 - An entry with no sequence lines (including the last one in the file) raises
-  `FastaParseError`; `;` comment lines and blank lines are skipped anywhere.
+  `FastaParseError`; `;` comment lines and blank or whitespace-only lines are skipped anywhere; a leading UTF-8 BOM is ignored.
 - `just lint`/`just format` cover `src` only, but CI also checks `tests`.
 
 ## Releasing

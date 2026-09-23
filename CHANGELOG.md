@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Editing a parsed entry (`dataclasses.replace(entry, gname="XYZ")`) now writes the
+  edit. `raw_header` is written verbatim only while it still parses to the entry's
+  fields, so unedited entries still round-trip byte-exact; a `raw_header` that
+  disagrees with the fields is ignored and the header is rebuilt.
+- Files starting with a UTF-8 byte-order mark, and whitespace-only lines before the
+  first header, no longer raise "Sequence data appears before any '>' header".
+
 ## [0.1.3] (2026-09-23)
 
 ### Fixed
