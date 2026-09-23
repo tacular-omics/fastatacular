@@ -126,3 +126,23 @@ def test_tab_separates_identifier_from_description():
 def test_internal_whitespace_in_sequence_lines_is_removed():
     (entry,) = _read_str(">x\nA C\tD\nE  F\n")
     assert entry.sequence == "ACDEF"
+
+
+def test_utf8_bom_file_is_accepted(tmp_path):
+    path = tmp_path / "bom.fasta"
+    path.write_bytes(b"\xef\xbb\xbf>x desc\nACDE\n")
+    (e,) = read_fasta(path)
+    assert e.identifier == "x"
+    assert e.raw_header == "x desc"
+    with FastaReader(path) as reader:
+        assert [r.identifier for r in reader] == ["x"]
+
+
+def test_utf8_bom_in_text_handle_is_accepted():
+    (e,) = _read_str("﻿>x desc\nACDE\n")
+    assert e.identifier == "x"
+
+
+def test_whitespace_only_lines_before_first_header_are_skipped():
+    entries = _read_str("   \n\t\r\n>x\nAC\n  \nDE\n")
+    assert [(e.identifier, e.sequence) for e in entries] == [("x", "ACDE")]

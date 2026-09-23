@@ -127,7 +127,7 @@ write_fasta(entries, "output.fasta", line_width=80)
 write_fasta(entries, "single-line.fasta", line_width=0)
 ```
 
-If `raw_header` is set on an entry (as it is on every entry produced by `read_fasta`), the writer round-trips it verbatim. Otherwise the header is rebuilt from the structured fields.
+If `raw_header` is set on an entry (as it is on every entry produced by `read_fasta`) and still matches the entry's structured fields, the writer round-trips it verbatim. If you changed a field (for example `dataclasses.replace(entry, gname="XYZ")`), or `raw_header` is empty, the header is rebuilt from the structured fields, so your edit is written.
 
 ## Error handling
 

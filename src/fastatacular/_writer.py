@@ -7,23 +7,50 @@ from pathlib import Path
 from typing import IO
 
 from fastatacular._models import SequenceEntry
-from fastatacular._parser import _KV_PATTERN
-from fastatacular.errors import FastaWriteError
+from fastatacular._parser import _KV_PATTERN, _parse_header_line
+from fastatacular.errors import FastaParseError, FastaWriteError
 
 _SEQ_LINE_WIDTH = 60
+
+_HEADER_FIELDS = (
+    "identifier",
+    "prefix",
+    "accession",
+    "entry_name",
+    "description",
+    "pname",
+    "gname",
+    "os_name",
+    "ncbi_tax_id",
+    "pe",
+    "sv",
+    "extra",
+)
+
+
+def _raw_header_matches(entry: SequenceEntry) -> bool:
+    """True if parsing ``entry.raw_header`` gives exactly the entry's header fields."""
+    try:
+        parsed = _parse_header_line(">" + entry.raw_header, 0)
+    except FastaParseError:
+        return False
+    return all(getattr(parsed, name) == getattr(entry, name) for name in _HEADER_FIELDS)
 
 
 def _build_header_line(entry: SequenceEntry) -> str:
     """Reconstruct a FASTA description line for ``entry``.
 
-    Priority: if ``raw_header`` was preserved during parsing, round-trip it
-    exactly. Otherwise rebuild from the structured fields.
+    Priority: if ``raw_header`` is set and still parses to the entry's current
+    header fields (identifier, description, ``gname``, ``extra``, ...), write it
+    verbatim, so unedited entries round-trip byte-exact. If any of those fields
+    was changed (e.g. with ``dataclasses.replace``), or ``raw_header`` is empty,
+    rebuild the header from the structured fields so the edit is kept.
 
     When falling back to ``description`` (``pname`` unset), its ``KEY=value``
     text is not copied verbatim: the structured fields are written instead, and
     only keys that no structured field or ``extra`` covers are kept from it.
     """
-    if entry.raw_header:
+    if entry.raw_header and _raw_header_matches(entry):
         return f">{entry.raw_header}"
 
     parts: list[str] = [entry.identifier]
