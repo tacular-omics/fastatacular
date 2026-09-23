@@ -1,12 +1,23 @@
 # fastatacular
 
+[![PyPI](https://img.shields.io/pypi/v/fastatacular)](https://pypi.org/project/fastatacular/)
 [![Python Package](https://github.com/tacular-omics/fastatacular/actions/workflows/ci.yml/badge.svg)](https://github.com/tacular-omics/fastatacular/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/tacular-omics/fastatacular)](LICENSE)
+[![License](https://img.shields.io/github/license/tacular-omics/fastatacular)](https://github.com/tacular-omics/fastatacular/blob/main/LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/fastatacular)](https://pypi.org/project/fastatacular/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22926358.svg)](https://doi.org/10.5281/zenodo.22926358)
 
-Pure-Python library for reading and writing [FASTA](https://en.wikipedia.org/wiki/FASTA_format) sequence files, with optional parsing of UniProt-style description keys (`OS=`, `OX=`, `GN=`, `PE=`, `SV=`) and pipe-delimited identifiers (`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`).
+A small, dependency-free library for reading and writing [FASTA](https://en.wikipedia.org/wiki/FASTA_format) sequence files in Python. It's built for proteomics and genomics pipelines that need fast, predictable FASTA parsing without pulling in a bioinformatics megapackage.
 
-It's the plain-FASTA companion to [pefftacular](https://github.com/tacular-omics/pefftacular) and ships with the same `read_*` / `*Reader` / `write_*` shape.
+It understands UniProt-style description keys (`OS=`, `OX=`, `GN=`, `PE=`, `SV=`) and pipe-delimited identifiers (`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`) out of the box, so you get structured fields instead of a header string to parse yourself.
+
+## Highlights
+
+- **Zero dependencies** — pure Python, nothing else to install.
+- **Two ways to read** — `read_fasta` for the whole file at once, `FastaReader` to stream entries lazily without loading everything into memory.
+- **UniProt headers parsed for you** — accession, organism, gene name, protein existence, and sequence version come back as typed fields, not a string you have to split yourself.
+- **Round-trip safe** — entries produced by `read_fasta` write back out byte-for-byte compatible headers.
+- **Actionable parse errors** — `FastaParseError` reports the offending line number and surrounding context.
+- **Shares its API shape with [pefftacular](https://github.com/tacular-omics/pefftacular)**, the PEFF (PSI Extended FASTA) sibling library, so switching formats doesn't mean relearning the interface.
 
 ## Install
 
@@ -148,6 +159,10 @@ just build        # build the package
 just clean        # remove cache files
 ```
 
+## Citation
+
+If you use fastatacular in research, please cite the archived software release. Machine-readable citation metadata is available in [`CITATION.cff`](https://github.com/tacular-omics/fastatacular/blob/main/CITATION.cff); GitHub's **Cite this repository** menu can render it as APA or BibTeX. DOI: [10.5281/zenodo.22926358](https://doi.org/10.5281/zenodo.22926358).
+
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/tacular-omics/fastatacular/blob/main/LICENSE)
