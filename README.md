@@ -62,7 +62,7 @@ Each entry is a `SequenceEntry`:
 | `identifier` | `str` | Token immediately after `>` (e.g. `sp|P12345|EX_HUMAN`) |
 | `sequence` | `str` | Concatenated sequence with whitespace stripped |
 | `prefix` | `str \| None` | Database prefix (`sp`, `tr`, `gi`, ...) when the id is pipe-delimited |
-| `accession` | `str \| None` | First pipe field (e.g. `P12345`) |
+| `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`) |
 | `entry_name` | `str \| None` | Third pipe field on UniProt ids (e.g. `EX_HUMAN`) |
 | `description` | `str \| None` | Free text after the identifier |
 | `pname` | `str \| None` | Protein name (description text, minus `KEY=value` pairs) |
