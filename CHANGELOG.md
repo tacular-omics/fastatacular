@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] (2026-09-23)
+
+### Added
+
+- Releases are archived on Zenodo (`.zenodo.json`); no code changes.
+
 ## [0.1.1] (2026-09-23)
 
 * Publish from GitHub Actions with PyPI trusted publishing (`publish.yml`);
