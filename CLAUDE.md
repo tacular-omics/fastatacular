@@ -60,9 +60,9 @@ scripts/release_version.py   # version sync/check used by just set-version / che
 ```
 
 Data flow (read): text lines -> `_iter_entries` skips blank lines and `;` comments ->
-`>` line goes to `_parse_header_line` (identifier = text up to the first space;
+`>` line goes to `_parse_header_line` (identifier = text up to the first whitespace;
 `_UNIPROT_ID` / `_PIPE_ID` regexes fill `prefix`/`accession`/`entry_name`;
-`_KV_PATTERN` pulls `KEY=value` pairs) -> sequence lines are `.strip()`ped and joined ->
+`_KV_PATTERN` pulls `KEY=value` pairs) -> all whitespace is removed from sequence lines and they are joined ->
 `_build_entry` makes a `SequenceEntry`, raising if the sequence is empty.
 
 Data flow (write): `_write_entry` validates identifier/sequence -> header is
@@ -105,15 +105,14 @@ Exported from `fastatacular` (`__all__`):
 - **`raw_header` wins on write.** Every parsed entry has `raw_header` set, so
   `dataclasses.replace(entry, gname="X")` writes the *old* header. Also clear
   `raw_header=""` to have edits take effect.
-- **Header rebuild can duplicate keys.** When `raw_header` is empty and `pname` is
-  `None`, the writer falls back to `description`, which (for parsed entries) already
-  contains the `KEY=value` text, then appends `OS=`/`OX=`/.../`extra` again
-  (`>x OS=H GN=A OS=H GN=A`). Known bug, not yet fixed; when constructing entries by
-  hand, put only the name text in `pname`/`description`.
-- **Identifier is split on a single space only**: a tab after the identifier stays in
-  `identifier`.
-- **Sequence lines are only `.strip()`ped**: internal whitespace (`A C D`) is kept,
-  despite the model docstring saying whitespace is stripped. Case and `*` are kept.
+- **Header rebuild from `description`.** When `raw_header` is empty and `pname` is
+  `None`, the writer uses the name text of `description` (before its first `KEY=`),
+  then the structured fields and `extra`; `KEY=value` pairs in `description` are only
+  written if no structured field or `extra` key covers them.
+- **Identifier ends at the first whitespace** (space or tab), like UniProt, BLAST,
+  Biopython and samtools.
+- **All whitespace is removed from sequence lines** (`A C D` -> `ACD`). Case and `*`
+  are kept.
 - `description` is the full text after the identifier *including* `KEY=value` pairs;
   `pname` is the part before the first key (or all of it when there are no keys).
 - `accession` is the *second* pipe field (`sp|P12345|...` -> `P12345`); `entry_name`

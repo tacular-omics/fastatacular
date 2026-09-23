@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
 import io
 
 import pytest
 
-from fastatacular import FastaWriteError, SequenceEntry, write_fasta
+from fastatacular import FastaWriteError, SequenceEntry, read_fasta, write_fasta
 
 
 def _write_str(entries, **kw) -> str:
@@ -88,3 +89,21 @@ def test_extra_keys_are_emitted():
     )
     out = _write_str([entry])
     assert out.startswith(">x name FOO=bar\n")
+
+
+def test_rebuild_from_parsed_description_does_not_duplicate_keys():
+    (parsed,) = read_fasta(io.StringIO(">x OS=Homo sapiens GN=A\nA\n"))
+    assert parsed.pname is None
+    entry = dataclasses.replace(parsed, raw_header="")
+    assert _write_str([entry]) == ">x OS=Homo sapiens GN=A\nA\n"
+
+
+def test_rebuild_from_description_uses_structured_fields_and_keeps_name():
+    entry = SequenceEntry(
+        identifier="x",
+        sequence="A",
+        description="Some protein OS=Mus musculus XY=1",
+        os_name="Homo sapiens",
+        gname="G",
+    )
+    assert _write_str([entry]) == ">x Some protein OS=Homo sapiens GN=G XY=1\nA\n"

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Writing an entry with an empty `raw_header` and no `pname` no longer repeats the
+  `KEY=value` pairs already present in `description`.
+- A tab now separates the identifier from the description, as in UniProt, BLAST,
+  Biopython and samtools (`>x\tdesc` gives identifier `x`).
+- Internal whitespace inside sequence lines is removed, as documented.
+- `just lint` and `just format` now cover `tests`, matching CI.
+
 ## [0.1.2] (2026-09-23)
 
 ### Added
