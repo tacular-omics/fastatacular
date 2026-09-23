@@ -1,6 +1,6 @@
 # fastatacular
 
-[![Python Package](https://github.com/tacular-omics/fastatacular/actions/workflows/python-package.yml/badge.svg)](https://github.com/tacular-omics/fastatacular/actions/workflows/python-package.yml)
+[![Python Package](https://github.com/tacular-omics/fastatacular/actions/workflows/ci.yml/badge.svg)](https://github.com/tacular-omics/fastatacular/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/tacular-omics/fastatacular)](LICENSE)
 
 Pure-Python library for reading and writing [FASTA](https://en.wikipedia.org/wiki/FASTA_format) sequence files, with optional parsing of UniProt-style description keys (`OS=`, `OX=`, `GN=`, `PE=`, `SV=`) and pipe-delimited identifiers (`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`).
