@@ -12,6 +12,21 @@ All notable changes to this project will be documented in this file.
   disagrees with the fields is ignored and the header is rebuilt.
 - Files starting with a UTF-8 byte-order mark, and whitespace-only lines before the
   first header, no longer raise "Sequence data appears before any '>' header".
+- Clearing a field on a parsed entry that has no protein name (for example
+  `dataclasses.replace(entry, gname=None)` on `>x OS=Homo sapiens GN=A`) now keeps it
+  cleared. The writer no longer reads the stale parsed `description` back in; an edited
+  `description` is still used.
+- `write_fasta` raises `FastaWriteError` instead of writing a corrupt file when a header
+  field contains a line break, the identifier or sequence contains whitespace, or a
+  wrapped sequence line would start with `>` or `;`.
+
+### Tests
+
+- Headers are checked against UniProt's FASTA header help page examples, real
+  UniProtKB headers (fields taken from the entries' JSON records) and NCBI headers
+  (`tests/reference/`).
+- Hypothesis property tests: write/read round trip, edits surviving a write, byte-exact
+  raw headers, BOM/CRLF/blank lines, and typed errors for malformed input.
 
 ## [0.1.3] (2026-09-23)
 
