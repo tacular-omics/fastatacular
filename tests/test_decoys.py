@@ -35,7 +35,9 @@ RANDOM_METHODS = ("shuffle", "debruijn", "markov")
 def _proteome(n: int = 300, seed: int = 7) -> list[SequenceEntry]:
     """A synthetic proteome sampled from the human model (lengths 50-800)."""
     lengths = [50 + (i * 97) % 750 for i in range(n)]
-    seqs = [make_decoy_sequence("A" * length, "markov", seed=seed * 1000 + i) for i, length in enumerate(lengths)]
+    seqs = [
+        make_decoy_sequence("A" * length, method="markov", seed=seed * 1000 + i) for i, length in enumerate(lengths)
+    ]
     text = "".join(f">sp|P{i:05d}|PROT{i}_HUMAN Protein {i} OS=Homo sapiens OX=9606\n{s}\n" for i, s in enumerate(seqs))
     return read_fasta(io.StringIO(text))
 
@@ -51,12 +53,12 @@ def proteome() -> list[SequenceEntry]:
 
 
 def test_reverse_and_pseudo_reverse() -> None:
-    assert make_decoy_sequence("MPEPTIDEK", "reverse") == "KEDITPEPM"
-    assert make_decoy_sequence("MPEPTIDEK", "reverse", keep_nterm=1, keep_cterm=1) == "MEDITPEPK"
+    assert make_decoy_sequence("MPEPTIDEK", method="reverse") == "KEDITPEPM"
+    assert make_decoy_sequence("MPEPTIDEK", method="reverse", keep_nterm=1, keep_cterm=1) == "MEDITPEPK"
     # Stretches between K/R are reversed; K and R stay put.
-    assert make_decoy_sequence("ABCKDEFRGH", "pseudo_reverse") == "CBAKFEDRHG"
-    assert make_decoy_sequence("ABCKDEFRGH", "reverse", keep_residues="KR") == "CBAKFEDRHG"
-    assert make_decoy_sequence("ABCKDEFRGH", "pseudo_reverse", keep_residues="") == "HGRFEDKCBA"
+    assert make_decoy_sequence("ABCKDEFRGH", method="pseudo_reverse") == "CBAKFEDRHG"
+    assert make_decoy_sequence("ABCKDEFRGH", method="reverse", keep_residues="KR") == "CBAKFEDRHG"
+    assert make_decoy_sequence("ABCKDEFRGH", method="pseudo_reverse", keep_residues="") == "HGRFEDKCBA"
 
 
 _residues = st.text(AMINO_ACIDS + "XU", min_size=0, max_size=80)
@@ -75,7 +77,7 @@ def test_kept_positions_stay_and_are_never_introduced(
 ) -> None:
     decoy = make_decoy_sequence(
         seq,
-        method,
+        method=method,
         seed=seed,
         keep_residues=keep,
         keep_nterm=nterm,
@@ -100,27 +102,27 @@ def test_kept_positions_stay_and_are_never_introduced(
 
 @pytest.mark.parametrize("method", RANDOM_METHODS)
 def test_same_seed_same_output_and_different_seed_differs(proteome: list[SequenceEntry], method: str) -> None:
-    a = [e.sequence for e in make_decoys(proteome, method, seed=42)]  # type: ignore[arg-type]
-    b = [e.sequence for e in make_decoys(proteome, method, seed=42)]  # type: ignore[arg-type]
-    c = [e.sequence for e in make_decoys(proteome, method, seed=43)]  # type: ignore[arg-type]
+    a = [e.sequence for e in make_decoys(proteome, method=method, seed=42)]  # type: ignore[arg-type]
+    b = [e.sequence for e in make_decoys(proteome, method=method, seed=42)]  # type: ignore[arg-type]
+    c = [e.sequence for e in make_decoys(proteome, method=method, seed=43)]  # type: ignore[arg-type]
     assert a == b
     assert a != c
-    assert make_decoy_sequence("MKTAYIAKQRQISFVK", method, seed="s") == make_decoy_sequence(  # type: ignore[arg-type]
+    assert make_decoy_sequence("MKTAYIAKQRQISFVK", method=method, seed="s") == make_decoy_sequence(  # type: ignore[arg-type]
         "MKTAYIAKQRQISFVK",
-        method,
+        method=method,
         seed="s",  # type: ignore[arg-type]
     )
 
 
 def test_unseeded_runs_differ() -> None:
     seq = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQFEVVHSLAKWKRQTLGQHDFSAGEGLYTHMK" * 2
-    assert len({make_decoy_sequence(seq, "shuffle") for _ in range(3)}) > 1
+    assert len({make_decoy_sequence(seq, method="shuffle") for _ in range(3)}) > 1
 
 
 @pytest.mark.parametrize("method", ["reverse", "pseudo_reverse", "shuffle", "markov"])
 def test_streaming_decoy_depends_only_on_its_target(proteome: list[SequenceEntry], method: str) -> None:
-    full = [e.sequence for e in make_decoys(proteome, method, seed=3)]  # type: ignore[arg-type]
-    alone = [e.sequence for e in make_decoys(proteome[5:9], method, seed=3)]  # type: ignore[arg-type]
+    full = [e.sequence for e in make_decoys(proteome, method=method, seed=3)]  # type: ignore[arg-type]
+    alone = [e.sequence for e in make_decoys(proteome[5:9], method=method, seed=3)]  # type: ignore[arg-type]
     assert alone == full[5:9]
 
 
@@ -132,7 +134,7 @@ def test_make_decoys_is_lazy_for_streaming_methods() -> None:
             seen.append(i)
             yield SequenceEntry(identifier=f"p{i}", sequence="MKTAYIAK")
 
-    it = make_decoys(gen(), "shuffle", seed=1)
+    it = make_decoys(gen(), method="shuffle", seed=1)
     assert seen == []
     next(it)
     assert seen == [0]
@@ -144,7 +146,7 @@ def test_debruijn_preserves_repeats() -> None:
     a = "MSTNE" + repeat + "GGDDEE"
     b = "AAQQLLP" + repeat + "HHTTS"
     entries = [SequenceEntry(identifier="a", sequence=a), SequenceEntry(identifier="b", sequence=b)]
-    da, db = (e.sequence for e in make_decoys(entries, "debruijn", seed=5, k=k))
+    da, db = (e.sequence for e in make_decoys(entries, method="debruijn", seed=5, k=k))
     ia, ib = a.index(repeat), b.index(repeat)
     # Positions whose (k+1)-mer lies wholly inside the repeat get the same label.
     assert da[ia + k : ia + len(repeat)] == db[ib + k : ib + len(repeat)]
@@ -152,7 +154,7 @@ def test_debruijn_preserves_repeats() -> None:
 
 
 def test_debruijn_composition_tracks_target(proteome: list[SequenceEntry]) -> None:
-    decoys = list(make_decoys(proteome, "debruijn", seed=1))
+    decoys = list(make_decoys(proteome, method="debruijn", seed=1))
     t = Counter("".join(e.sequence for e in proteome))
     d = Counter("".join(e.sequence for e in decoys))
     total = sum(t.values())
@@ -164,7 +166,7 @@ def test_markov_backs_off_and_keeps_nonstandard(tmp_path: Path) -> None:
     fasta.write_text(">a\nACDACDACD\n>b\nXXACXX\n")
     model = train_markov_model(fasta, order=2)
     assert model.metadata["entries"] == 2
-    decoy = make_decoy_sequence("MWYACDXW", "markov", model=model, seed=1)
+    decoy = make_decoy_sequence("MWYACDXW", method="markov", model=model, seed=1)
     assert len(decoy) == 8
     assert set(decoy) <= set("ACDX")
     assert decoy[6] == "X"
@@ -175,13 +177,13 @@ def test_markov_order_zero(tmp_path: Path) -> None:
     fasta.write_text(">a\nAAAAAAAAAC\n")
     model = train_markov_model([fasta], order=0)
     assert model.composition["A"] == pytest.approx(0.9)
-    assert set(make_decoy_sequence("MMMMMMMMMMMMMMMMMMMM", "markov", model=model, seed=2)) <= {"A", "C"}
+    assert set(make_decoy_sequence("MMMMMMMMMMMMMMMMMMMM", method="markov", model=model, seed=2)) <= {"A", "C"}
 
 
 def test_all_kept_returns_target() -> None:
-    assert make_decoy_sequence("KRKRKR", "shuffle", keep_residues="KR", seed=1) == "KRKRKR"
-    assert make_decoy_sequence("MK", "markov", keep_nterm=1, keep_cterm=1, seed=1) == "MK"
-    assert make_decoy_sequence("", "markov", seed=1) == ""
+    assert make_decoy_sequence("KRKRKR", method="shuffle", keep_residues="KR", seed=1) == "KRKRKR"
+    assert make_decoy_sequence("MK", method="markov", keep_nterm=1, keep_cterm=1, seed=1) == "MK"
+    assert make_decoy_sequence("", method="markov", seed=1) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +193,7 @@ def test_all_kept_returns_target() -> None:
 
 def test_decoy_headers(proteome: list[SequenceEntry]) -> None:
     target = proteome[0]
-    [decoy] = make_decoys([target], "reverse", prefix="rev_")
+    [decoy] = make_decoys([target], method="reverse", prefix="rev_")
     assert decoy.identifier == "rev_" + target.identifier
     assert decoy.accession == target.accession
     assert (decoy.pname, decoy.os_name, decoy.ncbi_tax_id) == (target.pname, target.os_name, target.ncbi_tax_id)
@@ -205,7 +207,7 @@ def test_decoy_headers(proteome: list[SequenceEntry]) -> None:
 
 def test_decoy_header_for_edited_entry_uses_current_fields() -> None:
     entry = SequenceEntry(identifier="x1", sequence="MKLV", gname="ABC")
-    [decoy] = make_decoys([entry], "reverse")
+    [decoy] = make_decoys([entry], method="reverse")
     assert decoy.raw_header == "DECOY_x1 GN=ABC"
     assert decoy.gname == "ABC"
 
@@ -257,10 +259,10 @@ def test_write_decoy_fasta_refuses_a_decoy_database(tmp_path: Path) -> None:
 def test_bad_options_raise_decoy_error_eagerly(kwargs: dict, match: str | None) -> None:
     method = kwargs.pop("method")
     if match is None:  # every residue kept: valid, and the decoy is the target
-        assert [e.sequence for e in make_decoys([SequenceEntry("a", "MKV")], method, **kwargs)] == ["MKV"]
+        assert [e.sequence for e in make_decoys([SequenceEntry("a", "MKV")], method=method, **kwargs)] == ["MKV"]
         return
     with pytest.raises(DecoyError, match=match) as info:
-        make_decoys(iter(()), method, **kwargs)  # raises before iteration
+        make_decoys(iter(()), method=method, **kwargs)  # raises before iteration
     assert isinstance(info.value, FastaError)
 
 
@@ -269,7 +271,7 @@ def test_model_that_excludes_every_free_residue_raises(tmp_path: Path) -> None:
     fasta.write_text(">a\nKKKKRRRR\n")
     model = train_markov_model(fasta, order=1)
     with pytest.raises(DecoyError, match="zero probability"):
-        make_decoy_sequence("MKV", "markov", model=model, keep_residues="KR")
+        make_decoy_sequence("MKV", method="markov", model=model, keep_residues="KR")
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +361,7 @@ def _peptides(seqs: list[str]) -> set[str]:
 @pytest.mark.parametrize("keep", [None, "KR"])
 def test_quality(proteome: list[SequenceEntry], method: str, keep: str | None) -> None:
     targets = [e.sequence for e in proteome]
-    decoys = [e.sequence for e in make_decoys(proteome, method, seed=11, keep_residues=keep)]  # type: ignore[arg-type]
+    decoys = [e.sequence for e in make_decoys(proteome, method=method, seed=11, keep_residues=keep)]  # type: ignore[arg-type]
     assert [len(d) for d in decoys] == [len(t) for t in targets]
     assert all(d != t for d, t in zip(decoys, targets, strict=True))
     t_comp, d_comp = Counter("".join(targets)), Counter("".join(decoys))
@@ -373,3 +375,13 @@ def test_quality(proteome: list[SequenceEntry], method: str, keep: str | None) -
             [i for i, c in enumerate(d) if c in "KR"] == [i for i, c in enumerate(t) if c in "KR"]
             for d, t in zip(decoys, targets, strict=True)
         )
+
+
+def test_method_and_prefix_are_keyword_only() -> None:
+    entry = SequenceEntry("a", "MKV")
+    with pytest.raises(TypeError):
+        make_decoys([entry], "reverse")  # type: ignore[misc]
+    with pytest.raises(TypeError):
+        make_decoy_sequence("MKV", "reverse")  # type: ignore[misc]
+    with pytest.raises(TypeError):
+        is_decoy(entry, "DECOY_")  # type: ignore[misc]

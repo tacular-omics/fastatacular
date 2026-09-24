@@ -430,8 +430,8 @@ class _Decoyer:
 
 def make_decoy_sequence(
     sequence: str,
-    method: DecoyMethod,
     *,
+    method: DecoyMethod,
     seed: int | str | bytes | None = None,
     keep_residues: str | None = None,
     keep_nterm: int = 0,
@@ -467,8 +467,8 @@ def _decoy_entry(entry: SequenceEntry, sequence: str, prefix: str) -> SequenceEn
 
 def make_decoys(
     entries: Iterable[SequenceEntry],
-    method: DecoyMethod,
     *,
+    method: DecoyMethod,
     prefix: str = DEFAULT_PREFIX,
     seed: int | str | bytes | None = None,
     keep_residues: str | None = None,
@@ -539,7 +539,7 @@ def make_decoys(
     return generate()
 
 
-def is_decoy(entry: SequenceEntry | str, prefix: str = DEFAULT_PREFIX) -> bool:
+def is_decoy(entry: SequenceEntry | str, *, prefix: str = DEFAULT_PREFIX) -> bool:
     """Whether an entry (or identifier) starts with the decoy ``prefix``."""
     identifier = entry if isinstance(entry, str) else entry.identifier
     return identifier.startswith(prefix)
@@ -572,7 +572,7 @@ def write_decoy_fasta(
         FastaParseError: For unreadable ``src``.
     """
     targets = read_fasta(src)
-    already = next((e.identifier for e in targets if is_decoy(e, prefix)), None)
+    already = next((e.identifier for e in targets if is_decoy(e, prefix=prefix)), None)
     if already is not None:
         raise DecoyError(
             f"The input already has decoy entries (e.g. {already!r} starts with {prefix!r})",
@@ -581,7 +581,7 @@ def write_decoy_fasta(
     decoys = list(
         make_decoys(
             targets,
-            method,
+            method=method,
             prefix=prefix,
             seed=seed,
             keep_residues=keep_residues,

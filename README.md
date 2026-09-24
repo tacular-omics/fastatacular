@@ -154,7 +154,7 @@ from fastatacular import is_decoy, make_decoys, read_fasta, write_decoy_fasta
 
 write_decoy_fasta("human.fasta", "human_td.fasta", method="pseudo_reverse", seed=1)
 
-decoys = make_decoys(read_fasta("human.fasta"), "markov", model="human", keep_residues="KR", seed=1)
+decoys = make_decoys(read_fasta("human.fasta"), method="markov", model="human", keep_residues="KR", seed=1)
 next(decoys).identifier   # "DECOY_sp|..."; is_decoy(entry) checks the prefix
 ```
 

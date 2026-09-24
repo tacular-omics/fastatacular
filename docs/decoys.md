@@ -17,7 +17,7 @@ n = write_decoy_fasta("human.fasta", "human_td.fasta", method="pseudo_reverse", 
 from fastatacular import is_decoy, make_decoys, read_fasta
 
 targets = read_fasta("human.fasta")
-decoys = list(make_decoys(targets, "markov", model="human", keep_residues="KR", seed=1))
+decoys = list(make_decoys(targets, method="markov", model="human", keep_residues="KR", seed=1))
 decoys[0].identifier   # "DECOY_sp|P31946|1433B_HUMAN"
 decoys[0].accession    # "P31946": fields other than the identifier are the target's
 is_decoy(decoys[0])    # True
