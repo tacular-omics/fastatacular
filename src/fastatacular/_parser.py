@@ -455,6 +455,12 @@ class FastaReader:
             self._fh.close()
         self._fh = None
 
+    def to_records(self) -> list[dict[str, str | int | None]]:
+        """Read the remaining entries as flat dicts (see :func:`fastatacular.to_records`)."""
+        from fastatacular._records import entry_to_record
+
+        return [entry_to_record(e) for e in self]
+
     def __iter__(self) -> Iterator[SequenceEntry]:
         if self._fh is None:
             raise RuntimeError("FastaReader must be used as a context manager (`with FastaReader(...) as r:`)")

@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `to_records(source)`, `FastaReader.to_records()` and `SequenceEntry.to_record()`: one
+  plain `dict` per entry with stable snake_case keys (`RECORD_KEYS`), ready for
+  `pandas.DataFrame(records)` or `polars.DataFrame(records)`. No new dependency.
 - Decoy databases (`fastatacular.decoys`, re-exported at the top level): `make_decoys`,
   `make_decoy_sequence`, `write_decoy_fasta`, `is_decoy`, `DecoyError`. Methods
   `reverse`, `pseudo_reverse`, `shuffle`, `debruijn` (repeat-preserving, Moosa et al.

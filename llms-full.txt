@@ -40,6 +40,8 @@ Everything public is importable from the top-level package:
         make_decoys, make_decoy_sequence, write_decoy_fasta, is_decoy,
         MarkovModel, train_markov_model, load_markov_model,
         DecoyError,        # bad decoy option or model (FastaError subclass)
+        to_records,        # flat dicts for pandas/polars (section 8c)
+        RECORD_KEYS,       # the record keys, in order
     )
     import fastatacular
     fastatacular.__version__   # e.g. "1.0.0"
@@ -521,6 +523,32 @@ Full guide: docs/decoys.md. Signatures (options shared by all four functions):
     'CBAKFEDRHG'
     >>> make_decoy_sequence("MPEPTIDEK", method="reverse", keep_nterm=1, keep_cterm=1)
     'MEDITPEPK'
+
+
+## 8c. Tables (pandas, polars)
+
+    to_records(source: str | Path | IO[str] | Iterable[SequenceEntry]) -> list[dict]
+    FastaReader.to_records() -> list[dict]      # remaining entries
+    SequenceEntry.to_record() -> dict
+
+One plain dict per entry with the keys of RECORD_KEYS, in this order: identifier,
+prefix, accession, entry_name, pname, gname, os_name, ncbi_tax_id (int), pe (int),
+sv (int), description, extra ("KEY=value KEY2=value2" or None), raw_header,
+length (int), sequence. Missing values are None.
+Record keys differ from pefftacular's because each follows its own model. To stack the
+two in one frame, rename: accession<->db_unique_id, entry_name<->id, os_name<->tax_name
+(prefix, pname, gname, ncbi_tax_id, pe, sv, length, sequence are shared; `extra` is
+"KEY=value" text here and "\Key=value" text there).
+fastatacular does not depend on pandas or polars; pass the list to them yourself:
+
+    import pandas as pd
+    df = pd.DataFrame(to_records("human.fasta"))
+
+    >>> import io
+    >>> from fastatacular import to_records
+    >>> rec = to_records(io.StringIO(">sp|P1|A_HUMAN Name OX=9606 XX=1\nMK\n"))[0]
+    >>> rec["accession"], rec["ncbi_tax_id"], rec["extra"], rec["length"]
+    ('P1', 9606, 'XX=1', 2)
 
 
 ## 9. Gotchas

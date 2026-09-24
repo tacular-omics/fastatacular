@@ -2,6 +2,7 @@
 
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import FastaReader, read_fasta
+from fastatacular._records import RECORD_KEYS, to_records
 from fastatacular._writer import write_fasta
 from fastatacular.decoys import (
     MarkovModel,
@@ -23,12 +24,14 @@ __all__ = [
     "FastaReader",
     "FastaWriteError",
     "MarkovModel",
+    "RECORD_KEYS",
     "SequenceEntry",
     "is_decoy",
     "load_markov_model",
     "make_decoy_sequence",
     "make_decoys",
     "read_fasta",
+    "to_records",
     "train_markov_model",
     "write_decoy_fasta",
     "write_fasta",

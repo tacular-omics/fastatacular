@@ -27,8 +27,9 @@ FASTA text as `io.StringIO`. Sibling package for PEFF files: `pefftacular`.
 
 ## API
 
-- [`__init__.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/__init__.py): public exports (`read_fasta`, `FastaReader`, `write_fasta`, `SequenceEntry`, `FastaError`, `FastaParseError`, `FastaWriteError`, `DecoyError`, decoy functions)
+- [`__init__.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/__init__.py): public exports (`read_fasta`, `FastaReader`, `write_fasta`, `SequenceEntry`, `FastaError`, `FastaParseError`, `FastaWriteError`, `DecoyError`, decoy functions, `to_records`)
 - [`decoys.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/decoys.py): decoy methods, `MarkovModel`, `train_markov_model`, `load_markov_model`
+- [`_records.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_records.py): `to_records` flat dicts for pandas/polars, `RECORD_KEYS`
 - [`_models.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_models.py): `SequenceEntry` fields
 - [`_parser.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_parser.py): reader and header parsing rules
 - [`_writer.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_writer.py): writer and header rebuild rules

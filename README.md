@@ -161,6 +161,55 @@ next(decoys).identifier   # "DECOY_sp|..."; is_decoy(entry) checks the prefix
 See [docs/decoys.md](docs/decoys.md) for every option, the Markov model data and
 per-method quality numbers on the human proteome.
 
+## Tables with pandas or polars
+
+`to_records(source)` returns one plain `dict` per entry, so any data-frame library can
+take the result directly. fastatacular does not ship or require pandas or polars;
+install whichever you use. (The test suite runs these examples only when the library is
+installed.)
+
+```python
+import pandas as pd
+import polars as pl
+
+from fastatacular import to_records
+
+records = to_records("human.fasta")   # a path, an open text handle, or entries
+df = pd.DataFrame(records)
+human = pl.DataFrame(records).filter(pl.col("ncbi_tax_id") == 9606)
+```
+
+`FastaReader.to_records()` and `SequenceEntry.to_record()` give the same dicts. Every
+record has these keys, in this order (`fastatacular.RECORD_KEYS`):
+
+| key | type | value |
+|---|---|---|
+| `identifier` | str | text after `>` up to the first whitespace |
+| `prefix`, `accession`, `entry_name` | str or None | `sp`, `P12345`, `NAME` from `sp\|P12345\|NAME` |
+| `pname` | str or None | protein name (description before the first `KEY=`) |
+| `gname`, `os_name` | str or None | `GN=`, `OS=` |
+| `ncbi_tax_id`, `pe`, `sv` | int or None | `OX=`, `PE=`, `SV=` |
+| `description` | str or None | everything after the identifier |
+| `extra` | str or None | other `KEY=value` pairs, space-separated |
+| `raw_header` | str | the header line without `>` |
+| `length` | int | sequence length |
+| `sequence` | str | the residues |
+
+The same fields in [pefftacular](https://github.com/tacular-omics/pefftacular) records have
+other names where each package follows its own model. Rename these to put both in one
+frame:
+
+| field | fastatacular | pefftacular |
+|---|---|---|
+| database prefix | `prefix` | `prefix` |
+| accession | `accession` | `db_unique_id` |
+| entry name | `entry_name` | `id` |
+| protein name, gene | `pname`, `gname` | `pname`, `gname` |
+| organism name | `os_name` | `tax_name` |
+| taxon id, PE, SV | `ncbi_tax_id`, `pe`, `sv` | `ncbi_tax_id`, `pe`, `sv` |
+| other keys | `extra`, `KEY=value` pairs | `extra`, `\Key=value` pairs |
+| length, residues | `length`, `sequence` | `length`, `sequence` |
+
 ## Error handling
 
 Parse errors raise `FastaParseError`:
