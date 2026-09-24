@@ -4,7 +4,7 @@
 > sequence files, with UniProt-style header keys and pipe-delimited identifiers
 > parsed into typed fields.
 
-This is the complete usage guide for fastatacular 0.1.x, written for AI agents and
+This is the complete usage guide for fastatacular 1.x, written for AI agents and
 people who want one self-contained reference. Every example below is a runnable
 doctest.
 
@@ -38,7 +38,7 @@ Everything public is importable from the top-level package:
         FastaWriteError,   # raised on unwritable entries (FastaError subclass)
     )
     import fastatacular
-    fastatacular.__version__   # e.g. "0.1.2"
+    fastatacular.__version__   # e.g. "1.0.0"
 
 There is no CLI and no logging. There are no submodules you need to import directly
 (`fastatacular._parser`, `._writer`, `._models` are private; `fastatacular.errors` is

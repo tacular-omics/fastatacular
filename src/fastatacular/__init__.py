@@ -5,7 +5,7 @@ from fastatacular._parser import FastaReader, read_fasta
 from fastatacular._writer import write_fasta
 from fastatacular.errors import FastaError, FastaParseError, FastaWriteError
 
-__version__ = "0.1.3"
+__version__ = "1.0.0"
 
 __all__ = [
     "FastaError",
