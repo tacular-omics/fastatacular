@@ -26,6 +26,10 @@ class SequenceEntry:
         raw_header:  the original header line text (without the leading ``>``).
                      The writer emits it verbatim only while it still parses to
                      the fields above; after an edit the header is rebuilt.
+
+    ``SequenceEntry`` is frozen and compares by value, but it is not hashable:
+    ``extra`` is a ``dict``. ``hash(entry)`` raises ``TypeError``, so entries
+    cannot be set members or dict keys; key on ``identifier`` instead.
     """
 
     identifier: str
@@ -42,3 +46,6 @@ class SequenceEntry:
     sv: int | None = None
     extra: dict[str, str] = field(default_factory=dict)
     raw_header: str = ""
+
+    # Explicitly unhashable (``extra`` is a dict); dataclass keeps an explicit ``None``.
+    __hash__ = None  # type: ignore[assignment]

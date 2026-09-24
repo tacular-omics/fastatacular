@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
-from typing import IO
+from typing import IO, Self
 
 from fastatacular._models import SequenceEntry
 from fastatacular.errors import FastaParseError
@@ -50,7 +50,9 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
     raw = line[1:].rstrip("\r\n")
     stripped = raw.strip()
     if not stripped:
-        raise FastaParseError("Empty FASTA header", line=line_no, context=line)
+        raise FastaParseError(
+            "Empty FASTA header", line=line_no, context=line, hint="Put an identifier right after '>'"
+        )
 
     # Split on the first run of any whitespace (space or tab), as UniProt, BLAST,
     # Biopython and samtools do.
@@ -114,6 +116,7 @@ def _build_entry(header: _ParsedHeader, seq_chunks: list[str], header_line_no: i
             f"Entry {header.identifier!r} has no sequence data",
             line=header_line_no,
             context=header.raw_header,
+            hint="Add sequence lines after the header, or remove the header",
         )
     return SequenceEntry(
         identifier=header.identifier,
@@ -160,6 +163,7 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
                     "Sequence data appears before any '>' header",
                     line=line_no,
                     context=line.rstrip("\n"),
+                    hint="A FASTA file must start with a '>' header line",
                 )
             seq_chunks.append("".join(line.split()))
 
@@ -168,14 +172,20 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
 
 
 class FastaReader:
-    """Iterate over a FASTA file lazily without loading the entire file."""
+    """Iterate over a FASTA file lazily without loading the entire file.
+
+    Use it as a context manager. A reader is single-pass: iterating it again
+    continues from where the previous iteration stopped, so after a full pass
+    a second ``for`` loop yields nothing. Open a new reader (or use
+    ``read_fasta``) to read the file again.
+    """
 
     def __init__(self, source: str | Path | IO[str]) -> None:
         self._source = source
         self._fh: IO[str] | None = None
         self._owns_fh = False
 
-    def __enter__(self) -> FastaReader:
+    def __enter__(self) -> Self:
         if isinstance(self._source, (str, Path)):
             self._fh = Path(self._source).open(encoding="utf-8-sig")
             self._owns_fh = True

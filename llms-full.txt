@@ -33,8 +33,9 @@ Everything public is importable from the top-level package:
         FastaReader,       # stream entries lazily (context manager)
         write_fasta,       # write entries to a path or text handle
         SequenceEntry,     # frozen dataclass, one per FASTA record
-        FastaParseError,   # raised on malformed input (ValueError subclass)
-        FastaWriteError,   # raised on unwritable entries (ValueError subclass)
+        FastaError,        # base of both errors below (ValueError subclass)
+        FastaParseError,   # raised on malformed input (FastaError subclass)
+        FastaWriteError,   # raised on unwritable entries (FastaError subclass)
     )
     import fastatacular
     fastatacular.__version__   # e.g. "0.1.2"
@@ -62,6 +63,8 @@ importable but its names are re-exported at the top level).
         __enter__ opens the path (UTF-8) if `source` is a str/Path, or uses the
         handle as-is. __exit__ closes the file only if FastaReader opened it.
         Iterating outside the `with` block raises RuntimeError.
+        Single-pass: a second iteration continues where the previous one stopped,
+        so after a full pass it yields nothing. Open a new reader to re-read.
 
     write_fasta(entries: Iterable[SequenceEntry],
                 dest: str | Path | IO[str],
@@ -71,6 +74,8 @@ importable but its names are re-exported at the top level).
         or an open text-mode file object (written to, not closed). `entries` can be
         any iterable, including a generator. `line_width` wraps sequence lines;
         0 or any value <= 0 writes each sequence on a single line.
+        All entries are validated before anything is written; on FastaWriteError
+        a path `dest` is not created and nothing is written to a handle.
 
     @dataclass(frozen=True, slots=True)
     class SequenceEntry(
@@ -90,14 +95,22 @@ importable but its names are re-exported at the top level).
         raw_header: str = "",
     )
 
-    class FastaParseError(ValueError)
-        __init__(message: str, *, line: int | None = None, context: str | None = None)
+    class FastaError(ValueError)
+        Base class of every fastatacular error; `except FastaError` catches both.
+
+    class FastaParseError(FastaError)
+        __init__(message: str, *, line: int | None = None, context: str | None = None,
+                 hint: str | None = None)
         .line     1-based line number of the problem (or None)
         .context  the offending line text (or None)
+        .hint     short fix suggestion (or None); also added as a "hint: ..." note
         str(err)  "Line {line}: {message}" when line is given, else message
 
-    class FastaWriteError(ValueError)
-        Plain ValueError subclass, constructed with a message.
+    class FastaWriteError(FastaError)
+        __init__(message: str, *, index: int | None = None, hint: str | None = None)
+        .index    0-based position of the bad entry in `entries` (or None)
+        .hint     short fix suggestion (or None); also added as a "hint: ..." note
+        str(err)  "Entry {index}: {message}" when index is given, else message
 
 
 ## 4. SequenceEntry fields
@@ -120,8 +133,9 @@ importable but its names are re-exported at the top level).
 | raw_header   | str              | the original header line without `>` and line ending                   |
 
 Entries are frozen: assigning a field raises dataclasses.FrozenInstanceError. Use
-dataclasses.replace() to derive a modified copy. Entries compare by value (==) but are
-not hashable, because `extra` is a dict.
+dataclasses.replace() to derive a modified copy. Entries compare by value (==) but
+SequenceEntry is not hashable, because `extra` is a dict: `SequenceEntry.__hash__` is
+None, so hash(entry), `{entry}` and using an entry as a dict key raise TypeError.
 
 
 ## 5. Reading
@@ -341,7 +355,8 @@ repeated.
 
 ### 7.1 FastaParseError
 
-Raised by `read_fasta` and during iteration of `FastaReader`. It subclasses ValueError.
+Raised by `read_fasta` and during iteration of `FastaReader`. It subclasses FastaError
+(and so ValueError).
 The message starts with `Line N: `; `.line` is the 1-based line number and `.context`
 the offending text.
 
@@ -389,15 +404,16 @@ A missing file raises the usual FileNotFoundError / OSError, not FastaParseError
     ...     write_fasta([SequenceEntry("x", "")], io.StringIO())
     ... except FastaWriteError as err:
     ...     print(err)
-    SequenceEntry 'x' has an empty sequence
+    Entry 0: SequenceEntry 'x' has an empty sequence
     >>> try:
     ...     write_fasta([SequenceEntry("", "MK")], io.StringIO())
     ... except FastaWriteError as err:
-    ...     print(err)
-    SequenceEntry has an empty identifier
+    ...     print(err, "|", err.index)
+    Entry 0: SequenceEntry has an empty identifier | 0
 
-Entries are written one by one; if a later entry fails, earlier ones have already been
-written to `dest`.
+Every entry is validated before anything is written, so a bad entry anywhere leaves
+`dest` untouched: a path is not created or truncated and nothing is written to a
+handle.
 
 Catch both with `except ValueError` if you do not care which.
 
@@ -464,7 +480,7 @@ Gzipped input: open it yourself in text mode and pass the handle.
    `accession` is the second field.
 8. Non-integer OX/PE/SV values go into `extra` as strings instead of raising.
 9. Duplicate keys: the last occurrence wins (typed field or `extra` entry overwritten).
-10. SequenceEntry is frozen and unhashable; use `dataclasses.replace` to modify and
+10. SequenceEntry is frozen and not hashable (`__hash__` is None); use `dataclasses.replace` to modify and
     key dicts by `identifier`/`accession`, not by the entry.
 11. Entries with an empty sequence cannot be read (FastaParseError) or written
     (FastaWriteError).
