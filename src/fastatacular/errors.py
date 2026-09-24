@@ -49,3 +49,17 @@ class FastaWriteError(FastaError):
         super().__init__(message if index is None else f"Entry {index}: {message}")
         if hint is not None:
             self.add_note(f"hint: {hint}")
+
+
+class DecoyError(FastaError):
+    """Raised for invalid decoy-generation arguments or an unusable Markov model.
+
+    Attributes:
+        hint: A short suggestion for how to fix the call, if any.
+    """
+
+    def __init__(self, message: str, *, hint: str | None = None) -> None:
+        self.hint = hint
+        super().__init__(message)
+        if hint is not None:
+            self.add_note(f"hint: {hint}")

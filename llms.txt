@@ -12,6 +12,9 @@ each entry's original header verbatim. UniProt headers such as
 `sv` fields. Paths may be gzip, bzip2 or xz compressed. Malformed or undecodable input
 raises `FastaParseError` with the line number.
 
+`make_decoys` / `write_decoy_fasta` build target-decoy databases (reverse,
+pseudo_reverse, shuffle, debruijn, markov), reproducible with `seed`.
+
 Install with `pip install fastatacular`. A `str` argument is always a file path; pass
 FASTA text as `io.StringIO`. Sibling package for PEFF files: `pefftacular`.
 
@@ -19,11 +22,13 @@ FASTA text as `io.StringIO`. Sibling package for PEFF files: `pefftacular`.
 
 - [llms-full.txt](https://raw.githubusercontent.com/tacular-omics/fastatacular/main/llms-full.txt): complete usage guide with every public name, signatures, examples and gotchas
 - [README](https://github.com/tacular-omics/fastatacular/blob/main/README.md): overview, quick start, data model table
+- [Decoy databases](https://github.com/tacular-omics/fastatacular/blob/main/docs/decoys.md): decoy methods, options, Markov models, quality numbers, citations
 - [CHANGELOG](https://github.com/tacular-omics/fastatacular/blob/main/CHANGELOG.md): release history
 
 ## API
 
-- [`__init__.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/__init__.py): public exports (`read_fasta`, `FastaReader`, `write_fasta`, `SequenceEntry`, `FastaError`, `FastaParseError`, `FastaWriteError`)
+- [`__init__.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/__init__.py): public exports (`read_fasta`, `FastaReader`, `write_fasta`, `SequenceEntry`, `FastaError`, `FastaParseError`, `FastaWriteError`, `DecoyError`, decoy functions)
+- [`decoys.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/decoys.py): decoy methods, `MarkovModel`, `train_markov_model`, `load_markov_model`
 - [`_models.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_models.py): `SequenceEntry` fields
 - [`_parser.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_parser.py): reader and header parsing rules
 - [`_writer.py`](https://github.com/tacular-omics/fastatacular/blob/main/src/fastatacular/_writer.py): writer and header rebuild rules

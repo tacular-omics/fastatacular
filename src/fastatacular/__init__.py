@@ -3,16 +3,33 @@
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import FastaReader, read_fasta
 from fastatacular._writer import write_fasta
-from fastatacular.errors import FastaError, FastaParseError, FastaWriteError
+from fastatacular.decoys import (
+    MarkovModel,
+    is_decoy,
+    load_markov_model,
+    make_decoy_sequence,
+    make_decoys,
+    train_markov_model,
+    write_decoy_fasta,
+)
+from fastatacular.errors import DecoyError, FastaError, FastaParseError, FastaWriteError
 
 __version__ = "1.0.0"
 
 __all__ = [
+    "DecoyError",
     "FastaError",
     "FastaParseError",
     "FastaReader",
     "FastaWriteError",
+    "MarkovModel",
     "SequenceEntry",
+    "is_decoy",
+    "load_markov_model",
+    "make_decoy_sequence",
+    "make_decoys",
     "read_fasta",
+    "train_markov_model",
+    "write_decoy_fasta",
     "write_fasta",
 ]

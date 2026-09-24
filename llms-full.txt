@@ -36,11 +36,16 @@ Everything public is importable from the top-level package:
         FastaError,        # base of both errors below (ValueError subclass)
         FastaParseError,   # raised on malformed input (FastaError subclass)
         FastaWriteError,   # raised on unwritable entries (FastaError subclass)
+        # decoy databases (fastatacular.decoys, see section 8b)
+        make_decoys, make_decoy_sequence, write_decoy_fasta, is_decoy,
+        MarkovModel, train_markov_model, load_markov_model,
+        DecoyError,        # bad decoy option or model (FastaError subclass)
     )
     import fastatacular
     fastatacular.__version__   # e.g. "1.0.0"
 
-There is no CLI and no logging. There are no submodules you need to import directly
+There is no CLI and no logging. The decoy names live in the public module
+`fastatacular.decoys` and are re-exported at the top level. There are no other submodules you need to import directly
 (`fastatacular._parser`, `._writer`, `._models` are private; `fastatacular.errors` is
 importable but its names are re-exported at the top level).
 
@@ -480,6 +485,42 @@ Gzipped input: open it yourself in text mode and pass the handle.
     with gzip.open("uniprot.fasta.gz", "rt", encoding="utf-8") as fh:
         with FastaReader(fh) as reader:
             for e in reader: ...
+
+
+## 8b. Decoy databases
+
+Full guide: docs/decoys.md. Signatures (options shared by all four functions):
+
+    make_decoys(entries: Iterable[SequenceEntry], method, *, prefix="DECOY_",
+                seed: int | str | bytes | None = None, keep_residues: str | None = None,
+                keep_nterm=0, keep_cterm=0, k=2, model="human") -> Iterator[SequenceEntry]
+    make_decoy_sequence(sequence: str, method, *, seed=None, keep_residues=None,
+                        keep_nterm=0, keep_cterm=0, k=2, model="human") -> str
+    write_decoy_fasta(src, dst, *, method, concatenate=True, prefix="DECOY_", seed=None,
+                      keep_residues=None, keep_nterm=0, keep_cterm=0, k=2, model="human",
+                      line_width=60) -> int   # number of decoys written
+    is_decoy(entry: SequenceEntry | str, prefix="DECOY_") -> bool
+    train_markov_model(fasta_paths, *, order=2, metadata=None) -> MarkovModel
+    load_markov_model(name_or_path) -> MarkovModel   # "human", "mouse", "yeast", "ecoli" or a path
+    MarkovModel.save(path)                           # .json or .json.gz
+
+- method: "reverse", "pseudo_reverse", "shuffle", "debruijn" (Moosa et al. 2020,
+  repeat-preserving, k = k-mer length) or "markov" (model = name, path or MarkovModel).
+- keep_residues: residues fixed in place and never drawn as replacements. Default "KR"
+  for pseudo_reverse, "" otherwise. keep_nterm / keep_cterm: terminal residues kept.
+- Same seed, method and options give the same output; seed=None is random.
+- The decoy header is prefix + the target header, so accession and the other fields are
+  the target's; only identifier (and prefix) change.
+- debruijn reads every entry before yielding (labels depend on the whole database); the
+  other methods stream, and each decoy depends only on its own target.
+- Bad options raise DecoyError when make_decoys is called. write_decoy_fasta raises
+  DecoyError if src already has prefixed entries.
+
+    >>> from fastatacular import make_decoy_sequence
+    >>> make_decoy_sequence("ABCKDEFRGH", "pseudo_reverse")
+    'CBAKFEDRHG'
+    >>> make_decoy_sequence("MPEPTIDEK", "reverse", keep_nterm=1, keep_cterm=1)
+    'MEDITPEPK'
 
 
 ## 9. Gotchas
