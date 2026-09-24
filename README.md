@@ -141,6 +141,26 @@ write_fasta(entries, "single-line.fasta", line_width=0)
 
 If `raw_header` is set on an entry (as it is on every entry produced by `read_fasta`) and still matches the entry's structured fields, the writer round-trips it verbatim. If you changed a field (for example `dataclasses.replace(entry, gname="XYZ")`), or `raw_header` is empty, the header is rebuilt from the structured fields, so your edit is written.
 
+## Decoy databases
+
+Build target-decoy databases for FDR estimation with `reverse`, `pseudo_reverse`,
+`shuffle`, `debruijn` (repeat-preserving, Moosa et al. 2020) or `markov` (order-2
+chains shipped for human, mouse, yeast and E. coli, trained on UniProt, CC BY 4.0).
+Every method takes `keep_residues` (e.g. `"KR"`), `keep_nterm` and `keep_cterm`, and the
+same `seed` always gives the same decoys. Pure Python, no extra dependencies.
+
+```python
+from fastatacular import is_decoy, make_decoys, read_fasta, write_decoy_fasta
+
+write_decoy_fasta("human.fasta", "human_td.fasta", method="pseudo_reverse", seed=1)
+
+decoys = make_decoys(read_fasta("human.fasta"), method="markov", model="human", keep_residues="KR", seed=1)
+next(decoys).identifier   # "DECOY_sp|..."; is_decoy(entry) checks the prefix
+```
+
+See [docs/decoys.md](docs/decoys.md) for every option, the Markov model data and
+per-method quality numbers on the human proteome.
+
 ## Error handling
 
 Parse errors raise `FastaParseError`:

@@ -50,6 +50,7 @@ src/fastatacular/
   _parser.py    # header regexes, _parse_header_line, _iter_entries (the streaming core),
                 # FastaReader (context manager) and read_fasta (eager list)
   _writer.py    # _build_header_line (raw_header if it still matches the fields, else rebuild), write_fasta
+  decoys.py     # public module: decoy methods, MarkovModel, train/load; data/markov/*.json.gz models
   errors.py     # FastaError(ValueError) base; FastaParseError (.line/.context/.hint); FastaWriteError (.index/.hint)
 tests/
   test_basic.py      # version smoke test
@@ -86,6 +87,9 @@ Exported from `fastatacular` (`__all__`):
   message is prefixed `Line N: `.
 - `FastaWriteError`: `FastaError` subclass for unwritable entries; `.index` (0-based
   entry position) and `.hint`; message is prefixed `Entry N: `.
+- Decoys (`fastatacular.decoys`, re-exported): `make_decoys`, `make_decoy_sequence`,
+  `write_decoy_fasta`, `is_decoy`, `MarkovModel`, `train_markov_model`,
+  `load_markov_model`, `DecoyError` (`FastaError` subclass). Guide: `docs/decoys.md`.
 - `__version__`.
 
 ## Conventions
@@ -136,6 +140,12 @@ Exported from `fastatacular` (`__all__`):
 - `#` lines before the first header (PEFF file header) are skipped; later `#` lines are sequence data.
 - An entry with no sequence lines (including the last one in the file) raises
   `FastaParseError`; `;` comment lines and blank or whitespace-only lines are skipped anywhere; a leading UTF-8 BOM is ignored.
+- **Decoy reproducibility is a contract.** Each decoy's `random.Random` is seeded from
+  `blake2b(sequence, key=seed)`; changing the draw order changes every user's decoys, so
+  treat it like a format change (CHANGELOG entry, tests in `tests/test_decoys.py`).
+  `debruijn` labels come from the whole database, so `make_decoys` materializes entries
+  for it. The shipped Markov models are rebuilt with `scripts/train_markov_models.py`
+  (update `data/markov/NOTICE.md`); `scripts/decoy_quality.py` gives the docs table.
 - `just lint`/`just format` cover `src` only, but CI also checks `tests`.
 
 ## Releasing

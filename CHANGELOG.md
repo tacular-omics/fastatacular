@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Decoy databases (`fastatacular.decoys`, re-exported at the top level): `make_decoys`,
+  `make_decoy_sequence`, `write_decoy_fasta`, `is_decoy`, `DecoyError`. Methods
+  `reverse`, `pseudo_reverse`, `shuffle`, `debruijn` (repeat-preserving, Moosa et al.
+  2020) and `markov`. All take `keep_residues`, `keep_nterm`, `keep_cterm` and are
+  reproducible with `seed`. Guide: `docs/decoys.md`.
+- Markov models: `MarkovModel`, `train_markov_model`, `load_markov_model`, and order-2
+  models for human, mouse, yeast and E. coli trained on UniProtKB/Swiss-Prot release
+  2026_03 (CC BY 4.0, see `src/fastatacular/data/markov/NOTICE.md`).
 - Compressed input: `read_fasta` and `FastaReader` read gzip, bzip2 and xz files given
   as paths, detected from the magic bytes. Paths are opened once, so pipes and FIFOs work; `bz2` and
   `lzma` are imported only when needed.
