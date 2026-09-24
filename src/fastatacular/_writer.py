@@ -38,8 +38,11 @@ def _parse_raw_header(entry: SequenceEntry) -> _ParsedHeader | None:
         return None
 
 
-def _build_header_line(entry: SequenceEntry) -> str:
+def _build_header_line(entry: SequenceEntry) -> tuple[str, bool]:
     """Reconstruct a FASTA description line for ``entry``.
+
+    Returns the line and whether it was rebuilt from the fields (``False``
+    when ``raw_header`` was written verbatim).
 
     Priority: if ``raw_header`` is set and still parses to the entry's current
     header fields (identifier, description, ``gname``, ``extra``, ...), write it
@@ -55,7 +58,7 @@ def _build_header_line(entry: SequenceEntry) -> str:
     """
     parsed = _parse_raw_header(entry)
     if parsed is not None and all(getattr(parsed, name) == getattr(entry, name) for name in _HEADER_FIELDS):
-        return f">{entry.raw_header}"
+        return f">{entry.raw_header}", False
 
     description = entry.description
     if parsed is not None and description == parsed.description:
@@ -95,7 +98,52 @@ def _build_header_line(entry: SequenceEntry) -> str:
         if typed.get(k) is None and k not in entry.extra:
             parts.append(f"{k}={v}")
 
-    return ">" + " ".join(parts)
+    return ">" + " ".join(parts), True
+
+
+_TYPED_FIELDS = (
+    ("os_name", "OS"),
+    ("ncbi_tax_id", "OX"),
+    ("gname", "GN"),
+    ("pe", "PE"),
+    ("sv", "SV"),
+)
+
+
+def _check_rebuilt_header(entry: SequenceEntry, header: str, index: int) -> None:
+    """Raise ``FastaWriteError`` if a rebuilt ``header`` would not read back to ``entry``.
+
+    Free text holding a ``KEY=`` token (``os_name="Homo sapiens GN=X"``), an
+    ``extra`` key that is not a single word, or an ``extra`` key that a typed
+    field owns (``extra={"OS": ...}``) would be split up differently on read.
+    Only fields the entry sets are checked: keys taken from a ``description``
+    fallback are expected to appear.
+    """
+    parsed = _parse_header_line(header, 0)
+    if entry.pname and parsed.pname != entry.pname:
+        raise FastaWriteError(
+            f"SequenceEntry {entry.identifier!r} pname {entry.pname!r} would read back as {parsed.pname!r}",
+            index=index,
+            hint="Remove 'KEY=' text and leading/trailing whitespace from pname",
+        )
+    for name, key in _TYPED_FIELDS:
+        value = getattr(entry, name)
+        if value is not None and getattr(parsed, name) != value:
+            raise FastaWriteError(
+                f"SequenceEntry {entry.identifier!r} {name} {value!r} would read back as {getattr(parsed, name)!r}",
+                index=index,
+                hint=f"Remove 'KEY=' text and leading/trailing whitespace from {name} (written as {key}=)",
+            )
+    for key, value in entry.extra.items():
+        if key not in parsed.extra or parsed.extra[key] != value:
+            raise FastaWriteError(
+                f"SequenceEntry {entry.identifier!r} extra[{key!r}] = {value!r} would not read back as written",
+                index=index,
+                hint=(
+                    "extra keys must be one word matching [A-Za-z_][A-Za-z0-9_]* and not OS/OX/GN/PE/SV "
+                    "(use the typed field); values must not contain 'KEY=' text or edge whitespace"
+                ),
+            )
 
 
 def _prepare_entry(entry: SequenceEntry, index: int, line_width: int) -> tuple[str, int]:
@@ -127,13 +175,15 @@ def _prepare_entry(entry: SequenceEntry, index: int, line_width: int) -> tuple[s
             hint="Pass the residues only; the writer wraps the sequence itself",
         )
 
-    header = _build_header_line(entry)
+    header, rebuilt = _build_header_line(entry)
     if "\n" in header or "\r" in header:
         raise FastaWriteError(
             f"SequenceEntry {entry.identifier!r} header contains a line break",
             index=index,
             hint="A FASTA header is one line; remove the \\n or \\r from the header fields",
         )
+    if rebuilt:
+        _check_rebuilt_header(entry, header, index)
 
     seq = entry.sequence
     step = line_width if line_width > 0 else len(seq)
@@ -171,6 +221,11 @@ def write_fasta(
     ``FastaWriteError`` is raised (its ``index`` names the entry), a path
     ``dest`` is not created or truncated, and nothing is written to a handle.
     """
+    if not isinstance(line_width, int) or isinstance(line_width, bool):
+        raise FastaWriteError(
+            f"line_width must be an int, got {line_width!r}",
+            hint="Pass an int; 0 or less writes each sequence on one line",
+        )
     items = [(entry, *_prepare_entry(entry, i, line_width)) for i, entry in enumerate(entries)]
     if isinstance(dest, (str, Path)):
         with Path(dest).open("w", encoding="utf-8") as fh:

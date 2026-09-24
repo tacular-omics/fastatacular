@@ -20,8 +20,33 @@ All notable changes to this project will be documented in this file.
   documented as continuing where the first iteration stopped (empty after a full pass).
 - Classifier `Development Status :: 5 - Production/Stable`.
 
+### Changed
+
+- `KEY=value` keys are only recognised at the start of the description or after
+  whitespace. `>x Protein(EC=2.7.1) OS=Homo sapiens` now gives
+  `pname='Protein(EC=2.7.1)'` (was `None` with `extra={'EC': '2.7.1)'}`), and NCBI
+  `[organism=...] [gene=...]` text stays in `pname` instead of becoming `extra` keys.
+  A key that starts the description is still a key (`>x pH=7 sensor` gives
+  `extra={'pH': '7 sensor'}`). Real UniProt, UniRef, UniParc and NCBI headers parse as before.
+- A pipe identifier's `prefix` may be any text without `|` or whitespace (was
+  `[A-Za-z0-9]+`), so decoy and contaminant ids such as `Reverse_sp|P1|X_HUMAN`,
+  `rev_sp|...`, `DECOY-0-sp|...` and `contam_sp|...` now get `prefix`, `accession` and
+  `entry_name` instead of `None`. Other ids with such a prefix (e.g.
+  `NW_001494075|IGHJ1-1*03|Bos`) are now split into those fields too.
+
 ### Fixed
 
+- `write_fasta` raises `FastaWriteError` (with `index` and `hint`) instead of writing
+  a header that reads back differently: free text holding a `KEY=` token
+  (`os_name="Homo sapiens GN=FAKE"`, `pname="Protein X=1 like"`), leading/trailing
+  whitespace in a written field, an `extra` key that is not one
+  `[A-Za-z_][A-Za-z0-9_]*` word (`extra={"bad key": "v"}`) or that a typed field owns
+  (`extra={"OS": "Mouse"}`). Unedited parsed entries are written verbatim as before.
+- `write_fasta` raises `FastaWriteError` instead of `TypeError` when `line_width` is
+  not an int (`None`, `60.0`, `True`).
+- `scripts/release_version.py sync --set X.Y.Z` also sets CITATION.cff
+  `date-released` to today (adding the field if missing); CITATION.cff now has
+  `date-released`.
 - `write_fasta` validates every entry before writing, so an unwritable entry no longer
   leaves a partial file: a path `dest` is not created or truncated and nothing is
   written to a handle.
