@@ -191,3 +191,47 @@ def test_gt_or_semicolon_inside_a_sequence_line_is_written():
     assert _write_str([entry]) == ">x\nAC>D;E\n"
     with pytest.raises(FastaWriteError):
         _write_str([entry], line_width=2)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"os_name": "Homo sapiens GN=FAKE"},
+        {"pname": "Protein X=1 like"},
+        {"gname": "A PE=3"},
+        {"os_name": " Homo sapiens "},
+        {"extra": {"bad key": "v"}},
+        {"extra": {"": "v"}},
+        {"extra": {"OS": "Mouse"}},
+        {"extra": {"PE": "1"}},
+        {"extra": {"K": "a OS=Mouse"}},
+        {"os_name": "Human", "extra": {"OS": "Mouse"}},
+    ],
+)
+def test_fields_that_would_read_back_differently_raise(change):
+    entry = dataclasses.replace(SequenceEntry(identifier="x", sequence="ACDE"), **change)
+    with pytest.raises(FastaWriteError) as info:
+        _write_str([SequenceEntry(identifier="ok", sequence="A"), entry])
+    assert info.value.index == 1
+    assert info.value.hint
+
+
+def test_key_like_text_inside_a_word_is_written():
+    entry = SequenceEntry(identifier="x", sequence="ACDE", pname="Protein(EC=2.7.1)", os_name="Homo sapiens")
+    out = _write_str([entry])
+    assert out.splitlines()[0] == ">x Protein(EC=2.7.1) OS=Homo sapiens"
+    (back,) = read_fasta(io.StringIO(out))
+    assert (back.pname, back.os_name) == ("Protein(EC=2.7.1)", "Homo sapiens")
+
+
+def test_description_only_entry_is_still_written():
+    entry = SequenceEntry(identifier="x", sequence="ACDE", description="Some protein OS=Homo sapiens")
+    assert _write_str([entry]).splitlines()[0] == ">x Some protein OS=Homo sapiens"
+
+
+@pytest.mark.parametrize("width", [None, 60.0, "60", True])
+def test_bad_line_width_raises_write_error(width):
+    with pytest.raises(FastaWriteError):
+        _write_str([SequenceEntry(identifier="x", sequence="ACDE")], line_width=width)
+    with pytest.raises(FastaWriteError):
+        _write_str([], line_width=width)

@@ -146,3 +146,43 @@ def test_utf8_bom_in_text_handle_is_accepted():
 def test_whitespace_only_lines_before_first_header_are_skipped():
     entries = _read_str("   \n\t\r\n>x\nAC\n  \nDE\n")
     assert [(e.identifier, e.sequence) for e in entries] == [("x", "ACDE")]
+
+
+@pytest.mark.parametrize(
+    ("header", "pname", "extra", "os_name"),
+    [
+        # ``KEY=`` inside a word is not a key: a key starts the description or follows whitespace.
+        (">x Protein(EC=2.7.1) OS=Homo sapiens", "Protein(EC=2.7.1)", {}, "Homo sapiens"),
+        (
+            ">NP_000001.1 insulin [organism=Homo sapiens] [gene=INS]",
+            "insulin [organism=Homo sapiens] [gene=INS]",
+            {},
+            None,
+        ),
+        (">x a-b=c d", "a-b=c d", {}, None),
+        # A key at the start of the description, or after whitespace, is still a key.
+        (">x pH=7 sensor", None, {"pH": "7 sensor"}, None),
+        (">x name FOO=bar", "name", {"FOO": "bar"}, None),
+    ],
+)
+def test_keys_must_start_a_word(header, pname, extra, os_name):
+    [e] = _read_str(f"{header}\nA\n")
+    assert e.pname == pname
+    assert e.extra == extra
+    assert e.os_name == os_name
+
+
+@pytest.mark.parametrize(
+    ("identifier", "prefix", "accession", "entry_name"),
+    [
+        ("Reverse_sp|P12345|X_HUMAN", "Reverse_sp", "P12345", "X_HUMAN"),
+        ("rev_sp|P12345|X_HUMAN", "rev_sp", "P12345", "X_HUMAN"),
+        ("DECOY-0-sp|P12345|X_HUMAN", "DECOY-0-sp", "P12345", "X_HUMAN"),
+        ("contam_sp|P12345|X_HUMAN", "contam_sp", "P12345", "X_HUMAN"),
+        ("Reverse_tr|A0A024R161", "Reverse_tr", "A0A024R161", None),
+        ("sp|P12345|X_HUMAN", "sp", "P12345", "X_HUMAN"),
+    ],
+)
+def test_decoy_and_contaminant_prefixes_keep_the_accession(identifier, prefix, accession, entry_name):
+    [e] = _read_str(f">{identifier} Name OS=Homo sapiens\nA\n")
+    assert (e.prefix, e.accession, e.entry_name) == (prefix, accession, entry_name)

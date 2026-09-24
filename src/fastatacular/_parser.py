@@ -12,15 +12,19 @@ from typing import IO, Self
 from fastatacular._models import SequenceEntry
 from fastatacular.errors import FastaParseError
 
-# Matches ``KEY=value`` pairs in UniProt-style headers. Value runs up to the
-# next ``KEY=`` token or end-of-string, then trailing whitespace is trimmed.
-_KV_PATTERN = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<val>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|$)")
+# Matches ``KEY=value`` pairs in UniProt-style headers. A key starts the
+# description or follows whitespace, so ``Protein(EC=2.7.1)`` and
+# ``[organism=Homo sapiens]`` are text, not keys. Value runs up to the next
+# ``KEY=`` token or end-of-string, then trailing whitespace is trimmed.
+_KV_PATTERN = re.compile(r"(?:^|(?<=\s))(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<val>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|$)")
 
-# UniProt FASTA identifier: ``db|ACCESSION|ENTRY_NAME`` (e.g. ``sp|P12345|EX_HUMAN``)
-_UNIPROT_ID = re.compile(r"^(?P<prefix>[A-Za-z0-9]+)\|(?P<accession>[^|]+)\|(?P<entry_name>[^|\s]+)$")
+# UniProt FASTA identifier: ``db|ACCESSION|ENTRY_NAME`` (e.g. ``sp|P12345|EX_HUMAN``).
+# The prefix is any run without ``|``, so decoy/contaminant tags such as
+# ``Reverse_sp|...``, ``rev_sp|...`` and ``DECOY-0-sp|...`` keep their accession.
+_UNIPROT_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|]+)\|(?P<entry_name>[^|\s]+)$")
 
 # NCBI-ish ``db|ID`` or ``db|ID|...`` identifier — accept the leading two fields.
-_PIPE_ID = re.compile(r"^(?P<prefix>[A-Za-z0-9]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
+_PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
 
 
 @dataclass(slots=True)
