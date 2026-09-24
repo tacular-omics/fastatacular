@@ -1,5 +1,6 @@
 """fastatacular — A pure-Python FASTA parsing and writing library."""
 
+from fastatacular._index import FastaIndex
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import FastaReader, read_fasta
 from fastatacular._records import RECORD_KEYS, to_records
@@ -20,6 +21,7 @@ __version__ = "1.0.0"
 __all__ = [
     "DecoyError",
     "FastaError",
+    "FastaIndex",
     "FastaParseError",
     "FastaReader",
     "FastaWriteError",
