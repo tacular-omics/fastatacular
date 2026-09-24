@@ -9,7 +9,8 @@ them lazily inside a `with` block; `write_fasta(entries, path)` writes them back
 each entry's original header verbatim. UniProt headers such as
 `>sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=EXMP PE=1 SV=2` become
 `prefix`, `accession`, `entry_name`, `pname`, `os_name`, `ncbi_tax_id`, `gname`, `pe`,
-`sv` fields. Malformed input raises `FastaParseError` with the line number.
+`sv` fields. Paths may be gzip, bzip2 or xz compressed. Malformed or undecodable input
+raises `FastaParseError` with the line number.
 
 Install with `pip install fastatacular`. A `str` argument is always a file path; pass
 FASTA text as `io.StringIO`. Sibling package for PEFF files: `pefftacular`.

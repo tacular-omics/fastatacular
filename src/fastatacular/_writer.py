@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import IO
 
 from fastatacular._models import SequenceEntry
-from fastatacular._parser import _KV_PATTERN, _parse_header_line, _ParsedHeader
+from fastatacular._parser import _parse_header_line, _ParsedHeader, _split_kv
 from fastatacular.errors import FastaParseError, FastaWriteError
 
 _SEQ_LINE_WIDTH = 60
@@ -69,11 +69,11 @@ def _build_header_line(entry: SequenceEntry) -> tuple[str, bool]:
     if entry.pname:
         parts.append(entry.pname)
     elif description:
-        matches = list(_KV_PATTERN.finditer(description))
-        name = description[: matches[0].start()].rstrip() if matches else description
+        first_key, pairs = _split_kv(description)
+        name = description[:first_key].rstrip() if first_key is not None else description
         if name:
             parts.append(name)
-        desc_extra = {m["key"]: m["val"].strip() for m in matches}
+        desc_extra = dict(pairs)
 
     if entry.os_name is not None:
         parts.append(f"OS={entry.os_name}")
