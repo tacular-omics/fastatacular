@@ -8,7 +8,8 @@ dependencies = []
 authors = [
     { name = "Patrick Garrett", email = "pgarrett@scripps.edu" }
 ]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["fasta", "proteomics", "genomics", "bioinformatics", "sequence"]
 maintainers = [
     { name = "Patrick Garrett", email = "pgarrett@scripps.edu" }
@@ -16,15 +17,17 @@ maintainers = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Typing :: Typed",
 ]
 
 [project.urls]
+Homepage = "https://github.com/tacular-omics/fastatacular"
+Documentation = "https://github.com/tacular-omics/fastatacular#readme"
 Repository = "https://github.com/tacular-omics/fastatacular"
 Issues = "https://github.com/tacular-omics/fastatacular/issues"
 Changelog = "https://github.com/tacular-omics/fastatacular/blob/main/CHANGELOG.md"
