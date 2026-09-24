@@ -85,7 +85,7 @@ def test_record_from_constructed_entry() -> None:
 
 
 def _readme_block() -> str:
-    text = README.read_text()
+    text = README.read_text(encoding="utf-8")
     section = text.split("## Tables with pandas or polars", 1)[1]
     return re.search(r"```python\n(.*?)```", section, re.S).group(1)  # type: ignore[union-attr]
 
