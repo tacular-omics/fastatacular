@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import bz2
-import gzip
-import lzma
+import io
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -13,7 +11,7 @@ from types import TracebackType
 from typing import IO, Self
 
 from fastatacular._models import SequenceEntry
-from fastatacular.errors import FastaParseError
+from fastatacular.errors import FastaError, FastaParseError
 
 # Matches ``KEY=value`` pairs in UniProt-style headers. A key starts the
 # description or follows whitespace, so ``Protein(EC=2.7.1)`` and
@@ -185,37 +183,93 @@ def _build_entry(header: _ParsedHeader, seq_chunks: list[str], header_line_no: i
     )
 
 
-# Leading bytes of the compressed formats read transparently.
+# Leading bytes of the compressed formats read transparently. The magic bytes alone
+# decide: a plain-text file named ``x.fasta.gz`` is read as plain text.
 _MAGIC = ((b"\x1f\x8b", "gz"), (b"BZh", "bz2"), (b"\xfd7zXZ\x00", "xz"))
-_SUFFIXES = {".gz": "gz", ".bz2": "bz2", ".xz": "xz"}
-# What a corrupt or truncated compressed stream raises while it is read.
-_COMPRESSED_ERRORS: tuple[type[Exception], ...] = (UnicodeDecodeError, EOFError, OSError, lzma.LZMAError)
+_MODULES = {"gz": "gzip", "bz2": "bz2", "xz": "lzma"}
 
 
-def _compression(path: Path) -> str | None:
-    """Return ``"gz"``, ``"bz2"``, ``"xz"`` or ``None`` from the magic bytes, else the suffix."""
-    with path.open("rb") as raw:
-        head = raw.read(6)
+def _compressed_errors() -> tuple[type[Exception], ...]:
+    """What a corrupt or truncated compressed stream raises while it is read.
+
+    Built on use: ``lzma`` is optional in CPython builds (``_lzma`` may be missing).
+    """
+    errors: list[type[Exception]] = [UnicodeDecodeError, EOFError, OSError]
+    try:
+        import lzma
+    except ImportError:
+        pass
+    else:
+        errors.append(lzma.LZMAError)
+    return tuple(errors)
+
+
+def _kind(head: bytes) -> str | None:
+    """Return ``"gz"``, ``"bz2"``, ``"xz"`` or ``None`` for the first bytes of a file."""
     for magic, kind in _MAGIC:
         if head.startswith(magic):
             return kind
-    return _SUFFIXES.get(path.suffix.lower())
+    return None
+
+
+def _compression(path: Path) -> str | None:
+    """Return the compression of a regular file from its magic bytes (``None`` if plain)."""
+    with path.open("rb") as raw:
+        return _kind(raw.read(6))
+
+
+class _TextOverRaw(io.TextIOWrapper):
+    """Text over a decompressor; closing it also closes the underlying file.
+
+    ``gzip``/``bz2``/``lzma`` never close a file object they were given.
+    """
+
+    def __init__(self, buffer: io.BufferedIOBase, raw: io.BufferedReader) -> None:
+        super().__init__(buffer, encoding="utf-8-sig")  # ty: ignore[invalid-argument-type]
+        self._raw_file = raw
+
+    def close(self) -> None:
+        try:
+            super().close()
+        finally:
+            self._raw_file.close()
+
+
+def _decompressor(kind: str, raw: io.BufferedReader) -> io.BufferedIOBase:
+    try:
+        if kind == "gz":
+            import gzip
+
+            return gzip.GzipFile(fileobj=raw, mode="rb")
+        if kind == "bz2":
+            import bz2
+
+            return bz2.BZ2File(raw, mode="rb")
+        import lzma
+
+        return lzma.LZMAFile(raw, mode="rb")
+    except ImportError as e:
+        err = FastaError(f"Cannot read {kind}-compressed input: this Python has no {_MODULES[kind]} module")
+        err.add_note(f"hint: decompress the file first, or use a Python built with {_MODULES[kind]} support")
+        raise err from e
 
 
 def _open_path(source: str | Path) -> tuple[IO[str], bool]:
-    """Open a FASTA path as UTF-8 text, decompressing ``.gz``/``.bz2``/``.xz`` input.
+    """Open a FASTA path as UTF-8 text, decompressing gzip/bzip2/xz input.
 
-    Returns the handle and whether it is compressed.
+    The file is opened once and its first bytes are peeked, not read, so pipes,
+    FIFOs, ``/dev/stdin`` and process substitution work. Returns the handle and
+    whether it is compressed.
     """
-    path = Path(source)
-    kind = _compression(path)
-    if kind == "gz":
-        return gzip.open(path, "rt", encoding="utf-8-sig"), True
-    if kind == "bz2":
-        return bz2.open(path, "rt", encoding="utf-8-sig"), True
-    if kind == "xz":
-        return lzma.open(path, "rt", encoding="utf-8-sig"), True
-    return path.open(encoding="utf-8-sig"), False
+    raw = open(source, "rb")  # noqa: SIM115 - closed by the returned handle
+    try:
+        kind = _kind(raw.peek(6)[:6])
+        if kind is None:
+            return io.TextIOWrapper(raw, encoding="utf-8-sig"), False
+        return _TextOverRaw(_decompressor(kind, raw), raw), True
+    except BaseException:
+        raw.close()
+        raise
 
 
 def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
@@ -289,7 +343,7 @@ def _iter_path_entries(fh: IO[str], *, compressed: bool = False) -> Iterator[Seq
     agree on where lines end); a record whose sequence is not plain letters is
     handled line by line exactly as ``_iter_entries`` does.
     """
-    errors: tuple[type[Exception], ...] = _COMPRESSED_ERRORS if compressed else (UnicodeDecodeError,)
+    errors: tuple[type[Exception], ...] = _compressed_errors() if compressed else (UnicodeDecodeError,)
     # A virtual "\n" in front makes a header on line 1 split like any other, and
     # makes line indices of the text equal to 1-based file line numbers.
     pending: list[str] = ["\n"]
@@ -413,7 +467,7 @@ def read_fasta(source: str | Path | IO[str]) -> list[SequenceEntry]:
     """Read an entire FASTA file into a list of ``SequenceEntry`` objects.
 
     A path may be plain or gzip/bzip2/xz compressed (detected from the magic
-    bytes, else the ``.gz``/``.bz2``/``.xz`` suffix).
+    bytes; a plain file with a ``.gz`` name is read as plain text).
     """
     if isinstance(source, (str, Path)):
         fh, compressed = _open_path(source)

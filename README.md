@@ -55,7 +55,7 @@ with FastaReader("proteins.fasta") as reader:
 ```
 
 **Compressed files** are read transparently: gzip, bzip2 and xz, detected from the magic
-bytes (or the `.gz`/`.bz2`/`.xz` suffix):
+bytes, not the file name. Pipes, FIFOs and `/dev/stdin` work too:
 
 ```python
 entries = read_fasta("uniprot_sprot.fasta.gz")

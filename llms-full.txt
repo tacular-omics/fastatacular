@@ -178,7 +178,9 @@ With a real file, pass the path (str or pathlib.Path):
     entries = read_fasta(Path("proteins.fasta"))
 
 Compressed files are read transparently (since 1.1): gzip, bzip2 and xz, detected from
-the file's magic bytes, else from the `.gz` / `.bz2` / `.xz` suffix. This applies to
+the file's magic bytes (a plain file named `.gz` is read as plain text). The path is
+opened once, so pipes, FIFOs and `/dev/stdin` work. A Python built without `bz2` or
+`lzma` imports fastatacular fine and raises `FastaError` only on such a file. This applies to
 paths only; for a handle, open it yourself (`gzip.open(path, "rt")`).
 
     entries = read_fasta("uniprot_sprot.fasta.gz")

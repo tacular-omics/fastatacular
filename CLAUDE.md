@@ -130,7 +130,8 @@ Exported from `fastatacular` (`__all__`):
   `\n>`, whole records); text handles go through the line-by-line `_iter_entries`. They
   must give identical results (`tests/test_fast_paths.py` checks this); change both
   together. `_split_kv` must match `_KV_PATTERN` (same test file).
-- Paths may be gzip/bzip2/xz (magic bytes, else suffix). Decode errors and corrupt
+- Paths may be gzip/bzip2/xz (magic bytes only; the path is opened once and
+  peeked, so FIFOs work; `bz2`/`lzma` are imported lazily because some Pythons lack them). Decode errors and corrupt
   compressed streams become `FastaParseError` chained to the original error.
 - `#` lines before the first header (PEFF file header) are skipped; later `#` lines are sequence data.
 - An entry with no sequence lines (including the last one in the file) raises

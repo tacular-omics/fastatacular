@@ -6,6 +6,10 @@ import bz2
 import gzip
 import io
 import lzma
+import os
+import subprocess
+import sys
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -52,12 +56,85 @@ def test_compressed_with_bom(tmp_path: Path, plain: list) -> None:  # type: igno
     assert read_fasta(path) == plain
 
 
-def test_gz_suffix_on_plain_text_raises_fasta_error(tmp_path: Path) -> None:
+def test_gz_suffix_on_plain_text_reads_as_plain(tmp_path: Path, plain: list) -> None:  # type: ignore[type-arg]
+    # The magic bytes decide, not the file name.
     path = tmp_path / "not_really.fasta.gz"
-    path.write_text(TEXT)
-    with pytest.raises(FastaParseError, match="Cannot read the input") as info:
+    path.write_text(TEXT, encoding="utf-8")
+    assert read_fasta(path) == plain
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs os.mkfifo")
+@pytest.mark.parametrize("suffix", ["", *COMPRESSORS])
+def test_fifo_is_read_once(tmp_path: Path, plain: list, suffix: str) -> None:  # type: ignore[type-arg]
+    # A pipe can be read only once: the format sniff must not consume its first bytes.
+    data = COMPRESSORS[suffix](TEXT.encode()) if suffix else TEXT.encode()
+    fifo = tmp_path / "pipe.fasta"
+    os.mkfifo(fifo)
+
+    def feed() -> None:
+        with fifo.open("wb") as w:
+            w.write(data)
+
+    result: list = []  # type: ignore[type-arg]
+    writer = threading.Thread(target=feed, daemon=True)
+    reader = threading.Thread(target=lambda: result.append(read_fasta(fifo)), daemon=True)
+    writer.start()
+    reader.start()
+    reader.join(timeout=10)
+    if reader.is_alive():  # a second open() of the FIFO blocks: give it EOF, then fail
+        os.close(os.open(fifo, os.O_WRONLY | os.O_NONBLOCK))
+        pytest.fail("reading the FIFO blocked (was it opened twice?)")
+    writer.join(timeout=10)
+    assert result == [plain]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="/dev/fd is POSIX only")
+def test_os_pipe_path(plain: list) -> None:  # type: ignore[type-arg]
+    r, w = os.pipe()
+    writer = threading.Thread(target=lambda: (os.write(w, TEXT.encode()), os.close(w)))
+    writer.start()
+    try:
+        with FastaReader(f"/dev/fd/{r}") as reader:
+            assert list(reader) == plain
+    finally:
+        writer.join(timeout=10)
+        os.close(r)
+
+
+_NO_LZMA_BZ2 = """
+import sys
+sys.modules["_lzma"] = None
+sys.modules["_bz2"] = None
+import fastatacular
+from fastatacular import FastaError, read_fasta
+assert [e.identifier for e in read_fasta(sys.argv[1])] == ["sp|P12345|EX_HUMAN", "b"]
+for path, module in ((sys.argv[2], "lzma"), (sys.argv[3], "bz2")):
+    try:
         read_fasta(path)
-    assert isinstance(info.value.__cause__, OSError)
+    except FastaError as e:
+        assert module in str(e), e
+    else:
+        raise SystemExit(f"{path} read without {module}")
+print("ok")
+"""
+
+
+def test_import_without_lzma_and_bz2(tmp_path: Path) -> None:
+    # Minimal Python builds (pyenv, slim images) can lack _lzma and _bz2.
+    plain_path = tmp_path / "p.fasta"
+    plain_path.write_text(TEXT, encoding="utf-8")
+    xz = tmp_path / "x.fasta.xz"
+    xz.write_bytes(lzma.compress(TEXT.encode()))
+    bz = tmp_path / "x.fasta.bz2"
+    bz.write_bytes(bz2.compress(TEXT.encode()))
+    result = subprocess.run(
+        [sys.executable, "-c", _NO_LZMA_BZ2, str(plain_path), str(xz), str(bz)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
 
 
 @pytest.mark.parametrize("suffix", list(COMPRESSORS))

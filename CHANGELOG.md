@@ -7,7 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Compressed input: `read_fasta` and `FastaReader` read gzip, bzip2 and xz files given
-  as paths, detected from the magic bytes (else the `.gz`/`.bz2`/`.xz` suffix).
+  as paths, detected from the magic bytes. Paths are opened once, so pipes and FIFOs work; `bz2` and
+  `lzma` are imported only when needed.
 - PEFF files read as plain FASTA: `#` lines before the first `>` header (the PEFF file
   header) are skipped instead of raising "Sequence data appears before any '>' header".
 
