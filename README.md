@@ -161,6 +161,42 @@ next(decoys).identifier   # "DECOY_sp|..."; is_decoy(entry) checks the prefix
 See [docs/decoys.md](docs/decoys.md) for every option, the Markov model data and
 per-method quality numbers on the human proteome.
 
+## Random access by identifier or accession
+
+`FastaIndex(path)` reads the file once and keeps only each entry's key and byte range;
+`index[key]` then reads and parses just that entry.
+
+```python
+from fastatacular import FastaIndex
+
+index = FastaIndex("human.fasta")
+entry = index["sp|P31946|1433B_HUMAN"]   # SequenceEntry, read from disk on demand
+"sp|P31946|1433B_HUMAN" in index, len(index)   # no file access
+index.write_fai()                        # human.fasta.fai, samtools-compatible
+index = FastaIndex.from_fai("human.fasta")   # later: load the .fai instead of scanning
+
+by_acc = FastaIndex("human.fasta", key="accession")
+by_acc["P31946"]
+```
+
+- By default keys are full identifiers (the first header word, the `.fai` name, as in
+  samtools). This works on target-decoy databases, where `sp|P1|X` and `DECOY_sp|P1|X`
+  or `Reverse_sp|P1|X` share an accession.
+- `key="accession"` keys entries by accession (`P31946` for `sp|P31946|1433B_HUMAN`, or
+  the whole identifier when it has no `|`). It needs unique accessions.
+- A repeated key raises `FastaError` naming the first one. A missing key raises
+  `FastaKeyError`, which is also a `KeyError`.
+- The file must be uncompressed. gzip (including bgzip), bzip2 and xz raise `FastaError`:
+  decompress first (`gunzip -k human.fasta.gz`). bgzip/`.gzi` is not supported.
+- `.fai` caveats: the name column is the first header word (mapped to the accession on
+  load with `key="accession"`). Like samtools, `write_fai()` needs every sequence line of an
+  entry but the last to have the same length, and no comment or blank lines inside a
+  sequence; otherwise it raises `FastaError` (rewrite the file with `write_fasta` first).
+  `from_fai` checks each entry's header against the `.fai` name but does not re-count
+  residues, so rebuild the `.fai` whenever the FASTA changes. Entries with no sequence
+  raise (samtools skips them). samtools and pysam refuse a FASTA file that starts with a
+  byte-order mark, so the `.fai` of such a file works only with `FastaIndex`.
+
 ## Tables with pandas or polars
 
 `to_records(source)` returns one plain `dict` per entry, so any data-frame library can

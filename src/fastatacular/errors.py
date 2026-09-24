@@ -10,6 +10,17 @@ class FastaError(ValueError):
     """Base class for all fastatacular errors."""
 
 
+class FastaKeyError(FastaError, KeyError):
+    """A :class:`FastaIndex` lookup found no entry.
+
+    Also a :class:`KeyError`, so ``except KeyError`` and ``Mapping.get`` work;
+    ``args[0]`` is the key looked up.
+    """
+
+    def __str__(self) -> str:
+        return str(self.args[0]) if len(self.args) == 1 else super().__str__()
+
+
 class FastaParseError(FastaError):
     """Raised when FASTA input cannot be parsed.
 

@@ -41,6 +41,7 @@ Everything public is importable from the top-level package:
         MarkovModel, train_markov_model, load_markov_model,
         DecoyError,        # bad decoy option or model (FastaError subclass)
         to_records,        # flat dicts for pandas/polars (section 8c)
+        FastaIndex,        # random access by identifier/accession, samtools .fai (section 8d)
         RECORD_KEYS,       # the record keys, in order
     )
     import fastatacular
@@ -549,6 +550,45 @@ fastatacular does not depend on pandas or polars; pass the list to them yourself
     >>> rec = to_records(io.StringIO(">sp|P1|A_HUMAN Name OX=9606 XX=1\nMK\n"))[0]
     >>> rec["accession"], rec["ncbi_tax_id"], rec["extra"], rec["length"]
     ('P1', 9606, 'XX=1', 2)
+
+
+## 8d. Random access (FastaIndex)
+
+    FastaIndex(path, *, key="identifier")            # one pass over an uncompressed file
+    FastaIndex.from_fai(path, fai_path=None, *, key="identifier")  # load samtools .fai
+    index.write_fai(fai_path=None) -> Path           # samtools-compatible .fai
+    index[k] -> SequenceEntry                        # reads only that entry
+    k in index; len(index); list(index)              # keys in file order, no file access
+    index.locate(k) -> (offset, length)              # byte range from '>' to the next '>'
+    index.identifier(k) -> str                       # first header word (.fai name)
+
+- FastaIndex is a read-only Mapping[str, SequenceEntry]. key="identifier" (default):
+  the first header word, the .fai name; works on target-decoy files (sp|P1|X and
+  DECOY_sp|P1|X share an accession). key="accession": the accession, or the whole
+  identifier when it has no '|'. A duplicate key -> FastaError naming the first repeat
+  (in accession mode, with a hint to use key="identifier"). Missing key ->
+  FastaKeyError (subclass of FastaError and KeyError).
+- Compressed input (gzip, bgzip, bzip2, xz) -> FastaError; decompress first.
+- write_fai raises FastaError for entries with uneven line lengths or blank/comment
+  lines inside the sequence (samtools rejects those too), and for entries with no
+  sequence (samtools skips them). Trailing spaces count in the line width, not the
+  residues, as in samtools. The output matches samtools faidx byte for byte.
+  samtools refuses a FASTA that starts with a BOM; its .fai works only with FastaIndex.
+- from_fai checks each header line against its .fai name, not the residue counts:
+  rebuild the .fai when the FASTA changes. The file is re-opened on every lookup.
+
+    >>> import pathlib, tempfile
+    >>> from fastatacular import FastaIndex
+    >>> p = pathlib.Path(tempfile.mkdtemp()) / "x.fasta"
+    >>> _ = p.write_text(">sp|P1|A_HUMAN a\nMKV\n>sp|P2|B_HUMAN b\nAAAA\n")
+    >>> index = FastaIndex(p)
+    >>> list(index), index["sp|P2|B_HUMAN"].sequence, "P2" in index
+    (['sp|P1|A_HUMAN', 'sp|P2|B_HUMAN'], 'AAAA', False)
+    >>> by_acc = FastaIndex(p, key="accession")
+    >>> list(by_acc), by_acc["P2"].identifier
+    (['P1', 'P2'], 'sp|P2|B_HUMAN')
+    >>> index.write_fai().read_text().splitlines()
+    ['sp|P1|A_HUMAN\t3\t17\t3\t4', 'sp|P2|B_HUMAN\t4\t38\t4\t5']
 
 
 ## 9. Gotchas

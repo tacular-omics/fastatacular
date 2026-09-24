@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `FastaIndex(path, *, key="identifier")`: random access to an uncompressed FASTA file
+  by full identifier (the `.fai` name, the default) or by accession (`key="accession"`).
+  One pass records each entry's byte range; `index[key]` reads only that entry.
+  `write_fai()` and `FastaIndex.from_fai()` save and load a samtools-compatible `.fai`.
+  Compressed files raise `FastaError`; a missing key raises `FastaKeyError`.
+- `FastaKeyError(FastaError, KeyError)`.
 - `to_records(source)`, `FastaReader.to_records()` and `SequenceEntry.to_record()`: one
   plain `dict` per entry with stable snake_case keys (`RECORD_KEYS`), ready for
   `pandas.DataFrame(records)` or `polars.DataFrame(records)`. No new dependency.
