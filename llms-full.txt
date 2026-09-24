@@ -554,8 +554,8 @@ fastatacular does not depend on pandas or polars; pass the list to them yourself
 
 ## 8d. Random access (FastaIndex)
 
-    FastaIndex(path, *, key="identifier")            # one pass over an uncompressed file
-    FastaIndex.from_fai(path, fai_path=None, *, key="identifier")  # load samtools .fai
+    FastaIndex(path, *, key="identifier", duplicates="error")  # one pass, uncompressed file
+    FastaIndex.from_fai(path, fai_path=None, *, key="identifier", duplicates="error")
     index.write_fai(fai_path=None) -> Path           # samtools-compatible .fai
     index[k] -> SequenceEntry                        # reads only that entry
     k in index; len(index); list(index)              # keys in file order, no file access
@@ -566,9 +566,14 @@ fastatacular does not depend on pandas or polars; pass the list to them yourself
   the first header word, the .fai name; works on target-decoy files (sp|P1|X and
   DECOY_sp|P1|X share an accession). key="accession": the accession, or the whole
   identifier when it has no '|'. A duplicate key -> FastaError naming the first repeat
-  (in accession mode, with a hint to use key="identifier"). Missing key ->
-  FastaKeyError (subclass of FastaError and KeyError).
-- Compressed input (gzip, bgzip, bzip2, xz) -> FastaError; decompress first.
+  (in accession mode, with a hint to use key="identifier"). duplicates="first" keeps
+  the first entry per key and skips later ones (like samtools faidx), logging one
+  WARNING on logger "fastatacular._index" with the count; skipped entries are not in
+  the index or its .fai. Missing key -> FastaKeyError (subclass of FastaError and
+  KeyError).
+- Compressed input (gzip, bgzip, bzip2, xz) -> FastaError; decompress first. A path
+  that is not a regular file (FIFO, pipe, directory) -> FastaError; a missing file ->
+  FileNotFoundError.
 - write_fai raises FastaError for entries with uneven line lengths or blank/comment
   lines inside the sequence (samtools rejects those too), and for entries with no
   sequence (samtools skips them). Trailing spaces count in the line width, not the

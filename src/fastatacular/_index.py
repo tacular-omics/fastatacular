@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import mmap
 import os
 from collections.abc import Iterator, Mapping
@@ -16,12 +17,21 @@ from fastatacular.errors import FastaError, FastaKeyError, FastaParseError
 _BOM = b"\xef\xbb\xbf"
 
 IndexKey = Literal["identifier", "accession"]
+Duplicates = Literal["error", "first"]
+
+_log = logging.getLogger(__name__)
 
 
 def _check_key(key: object) -> IndexKey:
     if key in ("identifier", "accession"):
         return cast("IndexKey", key)
     raise FastaError(f"key must be 'identifier' or 'accession', got {key!r}")
+
+
+def _check_duplicates(duplicates: object) -> Duplicates:
+    if duplicates in ("error", "first"):
+        return cast("Duplicates", duplicates)
+    raise FastaError(f"duplicates must be 'error' or 'first', got {duplicates!r}")
 
 
 def _accession(identifier: str) -> str:
@@ -73,6 +83,12 @@ class FastaIndex(Mapping[str, SequenceEntry]):
     ``sp|P31946|1433B_HUMAN``, the second pipe field as in :class:`SequenceEntry`, or
     the whole identifier when it has no pipe); it needs unique accessions.
 
+    Two entries with the same key raise :class:`FastaError` by default. Real databases
+    do repeat identifiers (IP2 exports, merged databases); ``duplicates="first"`` keeps
+    the first entry for each key and skips the later ones, like ``samtools faidx``,
+    and logs one warning with the number skipped (logger ``fastatacular._index``).
+    Skipped entries cannot be looked up and are not written by :meth:`write_fai`.
+
     A missing key raises :class:`FastaKeyError` (a :class:`KeyError`). The file is
     opened on every lookup and must not change while the index is used.
 
@@ -82,20 +98,23 @@ class FastaIndex(Mapping[str, SequenceEntry]):
     :meth:`write_fai` and :meth:`from_fai` save and load a samtools-compatible ``.fai``.
 
     Raises:
-        FastaError: The file is compressed, ``key`` is not ``"identifier"`` or
-            ``"accession"``, or two entries have the same key (the message names the
+        FastaError: The path is not a regular file (a directory, FIFO or pipe), the
+            file is compressed, ``key`` or ``duplicates`` is not a valid value, or two
+            entries have the same key and ``duplicates="error"`` (the message names the
             first repeated one).
         FastaParseError: Undecodable or empty headers, or sequence data before the
             first header. Errors inside an entry's sequence are raised when that entry
             is read.
     """
 
-    def __init__(self, path: str | Path, *, key: IndexKey = "identifier") -> None:
+    def __init__(self, path: str | Path, *, key: IndexKey = "identifier", duplicates: Duplicates = "error") -> None:
         self.path = Path(path)
         self.key: IndexKey = _check_key(key)
+        self.duplicates: Duplicates = _check_duplicates(duplicates)
         _require_plain(self.path)
         self._spans: dict[str, tuple[int, int]] = {}
         self._names: dict[str, str] = {}  # key -> identifier (the .fai name)
+        self._skipped = 0
         with self.path.open("rb") as fh:
             size = os.fstat(fh.fileno()).st_size
             if size == 0:
@@ -114,10 +133,14 @@ class FastaIndex(Mapping[str, SequenceEntry]):
                     identifier = _identifier(mm[h + 1 : header_end], h, self.path)
                     self._add(identifier, h, end)
                     h = -1 if nxt == -1 else nxt + 1
+        self._report_skipped()
 
     def _add(self, identifier: str, start: int, end: int) -> None:
         key = identifier if self.key == "identifier" else _accession(identifier)
         if key in self._spans:
+            if self.duplicates == "first":
+                self._skipped += 1
+                return
             err = FastaError(
                 f"Duplicate {self.key} {key!r} in {self.path} (entry {identifier!r} at byte {start})",
             )
@@ -126,9 +149,20 @@ class FastaIndex(Mapping[str, SequenceEntry]):
                     "hint: accessions repeat in target-decoy and multi-source files; "
                     'use key="identifier" to key entries by the full identifier'
                 )
+            err.add_note('hint: duplicates="first" keeps the first entry for each key, like samtools faidx')
             raise err
         self._spans[key] = (start, end)
         self._names[key] = identifier
+
+    def _report_skipped(self) -> None:
+        if self._skipped:
+            _log.warning(
+                "%s: skipped %d entr%s with a repeated %s (kept the first of each)",
+                self.path,
+                self._skipped,
+                "y" if self._skipped == 1 else "ies",
+                self.key,
+            )
 
     # -- Mapping --------------------------------------------------------------------
 
@@ -249,28 +283,37 @@ class FastaIndex(Mapping[str, SequenceEntry]):
 
     @classmethod
     def from_fai(
-        cls, path: str | Path, fai_path: str | Path | None = None, *, key: IndexKey = "identifier"
+        cls,
+        path: str | Path,
+        fai_path: str | Path | None = None,
+        *,
+        key: IndexKey = "identifier",
+        duplicates: Duplicates = "error",
     ) -> FastaIndex:
         """Load an index from a samtools ``.fai`` (default ``path + ".fai"``) instead of scanning.
 
-        The ``.fai`` name column is the first header word; ``key`` maps it the same way
-        as when building the index. Each entry's header line is checked
-        against its name while loading, so a ``.fai`` that does not belong to the file
-        raises :class:`FastaError`. Residues are not re-counted: a ``.fai`` made for a
-        different version of the file with the same headers and offsets is not
-        detected.
+        The ``.fai`` name column is the first header word; ``key`` and ``duplicates``
+        work the same way as when building the index. A ``.fai`` may leave entries out
+        (samtools omits repeated names): each entry ends at the next header in the file.
+        Each entry's header line is checked against its name while loading, so a
+        ``.fai`` that does not belong to the file raises :class:`FastaError`. Residues
+        are not re-counted: a ``.fai`` made for a different version of the file with the
+        same headers and offsets is not detected.
 
         Raises:
-            FastaError: The file is compressed, a ``.fai`` line is malformed, an offset
-                does not point just after a header with that name, or two names map to
-                the same key.
+            FastaError: The path is not a regular file, the file is compressed, a
+                ``.fai`` line is malformed, an offset does not point just after a header
+                with that name, or two names map to the same key and
+                ``duplicates="error"``.
         """
         index = cls.__new__(cls)
         index.path = Path(path)
         index.key = _check_key(key)
+        index.duplicates = _check_duplicates(duplicates)
         _require_plain(index.path)
         index._spans = {}
         index._names = {}
+        index._skipped = 0
         fai = Path(fai_path) if fai_path is not None else Path(f"{index.path}.fai")
         rows: list[tuple[int, int, str]] = []  # (header start, sequence offset, name)
         with index.path.open("rb") as fh:
@@ -301,16 +344,25 @@ class FastaIndex(Mapping[str, SequenceEntry]):
                     header = mm[hstart + 1 : offset - 1].rstrip(b"\r")
                     if _identifier(header, hstart, index.path) != name:
                         raise _stale(fai, name, offset)
-                    rows.append((hstart, offset, name))
-        rows.sort()
-        for i, (hstart, _, name) in enumerate(rows):
-            end = rows[i + 1][0] if i + 1 < len(rows) else size
+                    nxt = mm.find(b"\n>", offset - 1)
+                    rows.append((hstart, size if nxt == -1 else nxt + 1, name))
+        rows.sort()  # file order for iteration, and "first" means first in the file
+        for hstart, end, name in rows:
             index._add(name, hstart, end)
-        # Keep file order for iteration (already sorted by offset).
+        index._report_skipped()
         return index
 
 
 def _require_plain(path: Path) -> None:
+    # A FIFO or pipe would be read (and consumed) by the compression sniff and then
+    # mmap'd as an empty file: refuse anything that is not a regular file up front.
+    if path.exists() and not path.is_file():
+        err = FastaError(f"Cannot index {path}: not a regular file")
+        err.add_note(
+            "hint: FastaIndex needs a regular file it can seek in, not a directory, FIFO or "
+            "pipe; save the input to a file first, or read it once with FastaReader"
+        )
+        raise err
     if (kind := _compression(path)) is not None:
         err = FastaError(f"Cannot index {path}: it is {kind}-compressed")
         err.add_note(

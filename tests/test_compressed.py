@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -99,6 +100,41 @@ def test_os_pipe_path(plain: list) -> None:  # type: ignore[type-arg]
     finally:
         writer.join(timeout=10)
         os.close(r)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="/dev/fd is POSIX only")
+@pytest.mark.parametrize("suffix", ["", *COMPRESSORS])
+def test_pipe_short_first_chunk(plain: list, suffix: str) -> None:  # type: ignore[type-arg]
+    # The first read of a pipe returns only what the writer has sent so far; the
+    # format sniff must wait for the whole magic number, not decide on one byte.
+    data = COMPRESSORS[suffix](TEXT.encode()) if suffix else TEXT.encode()
+    r, w = os.pipe()
+
+    def feed() -> None:
+        os.write(w, data[:1])
+        time.sleep(0.2)
+        os.write(w, data[1:])
+        os.close(w)
+
+    writer = threading.Thread(target=feed)
+    writer.start()
+    try:
+        assert read_fasta(f"/dev/fd/{r}") == plain
+    finally:
+        writer.join(timeout=10)
+        os.close(r)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="/dev/fd is POSIX only")
+def test_pipe_shorter_than_magic() -> None:
+    r, w = os.pipe()
+    os.write(w, b">a\nM\n")  # 5 bytes: less than a magic number
+    os.close(w)
+    try:
+        records = read_fasta(f"/dev/fd/{r}")
+    finally:
+        os.close(r)
+    assert [rec.identifier for rec in records] == ["a"]
 
 
 _NO_LZMA_BZ2 = """

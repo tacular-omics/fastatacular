@@ -76,6 +76,8 @@ testpaths = ["tests"]
 [tool.coverage.run]
 source = ["src/fastatacular"]
 omit = ["*/__pycache__/*"]
+# Measure the tests that run the package in a subprocess (e.g. without lzma/bz2).
+patch = ["subprocess"]
 
 [tool.coverage.report]
 show_missing = true
