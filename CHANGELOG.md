@@ -4,8 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] (2026-09-23)
+
+First stable release: the public API is now stable and follows semantic versioning.
+
 ### Added
 
+- `py.typed` marker in the wheel (`Typing :: Typed`); Python 3.14 classifier; SPDX
+  `license = "MIT"` metadata.
 - `FastaError(ValueError)`, exported base class of `FastaParseError` and
   `FastaWriteError`; `except FastaError` catches every fastatacular error.
 - Errors carry a `hint` (also shown as a traceback note). `FastaWriteError` has an
@@ -19,9 +25,6 @@ All notable changes to this project will be documented in this file.
 - `FastaReader.__enter__` is typed to return `Self`. Iterating a reader a second time is
   documented as continuing where the first iteration stopped (empty after a full pass).
 - Classifier `Development Status :: 5 - Production/Stable`.
-
-### Changed
-
 - `KEY=value` keys are only recognised at the start of the description or after
   whitespace. `>x Protein(EC=2.7.1) OS=Homo sapiens` now gives
   `pname='Protein(EC=2.7.1)'` (was `None` with `extra={'EC': '2.7.1)'}`), and NCBI
