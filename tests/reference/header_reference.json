@@ -1,0 +1,739 @@
+{
+ "cases": [
+  {
+   "source": "uniprot-help",
+   "header": ">sp|Q8I6R7|ACN2_ACAGO Acanthoscurrin-2 (Fragment) OS=Acanthoscurria gomesiana OX=115339 GN=acantho2 PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "Q8I6R7",
+    "entry_name": "ACN2_ACAGO",
+    "pname": "Acanthoscurrin-2 (Fragment)",
+    "os_name": "Acanthoscurria gomesiana",
+    "ncbi_tax_id": 115339,
+    "gname": "acantho2",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|Q8I6R7|ACN2_ACAGO"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">sp|P27748|ACOX_CUPNH Acetoin catabolism protein X OS=Cupriavidus necator (strain ATCC 17699 / H16 / DSM 428 / Stanier 337) OX=381666 GN=acoX PE=4 SV=2",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P27748",
+    "entry_name": "ACOX_CUPNH",
+    "pname": "Acetoin catabolism protein X",
+    "os_name": "Cupriavidus necator (strain ATCC 17699 / H16 / DSM 428 / Stanier 337)",
+    "ncbi_tax_id": 381666,
+    "gname": "acoX",
+    "pe": 4,
+    "sv": 2,
+    "extra": {},
+    "identifier": "sp|P27748|ACOX_CUPNH"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">sp|P04224|HA22_MOUSE H-2 class II histocompatibility antigen, E-K alpha chain OS=Mus musculus OX=10090 PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P04224",
+    "entry_name": "HA22_MOUSE",
+    "pname": "H-2 class II histocompatibility antigen, E-K alpha chain",
+    "os_name": "Mus musculus",
+    "ncbi_tax_id": 10090,
+    "gname": null,
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|P04224|HA22_MOUSE"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">tr|Q3SA23|Q3SA23_9HIV1 Protein Nef (Fragment) OS=Human immunodeficiency virus 1  OX=11676 GN=nef PE=3 SV=1",
+   "expected": {
+    "prefix": "tr",
+    "accession": "Q3SA23",
+    "entry_name": "Q3SA23_9HIV1",
+    "pname": "Protein Nef (Fragment)",
+    "os_name": "Human immunodeficiency virus 1",
+    "ncbi_tax_id": 11676,
+    "gname": "nef",
+    "pe": 3,
+    "sv": 1,
+    "extra": {},
+    "identifier": "tr|Q3SA23|Q3SA23_9HIV1"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">tr|Q8N2H2|Q8N2H2_HUMAN cDNA FLJ90785 fis, clone THYRO1001457, moderately similar to H.sapiens protein kinase C mu OS=Homo sapiens OX=9606 PE=2 SV=1",
+   "expected": {
+    "prefix": "tr",
+    "accession": "Q8N2H2",
+    "entry_name": "Q8N2H2_HUMAN",
+    "pname": "cDNA FLJ90785 fis, clone THYRO1001457, moderately similar to H.sapiens protein kinase C mu",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": null,
+    "pe": 2,
+    "sv": 1,
+    "extra": {},
+    "identifier": "tr|Q8N2H2|Q8N2H2_HUMAN"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">sp|Q4R572-2|1433B_MACFA Isoform Short of 14-3-3 protein beta/alpha OS=Macaca fascicularis OX=9541 GN=YWHAB",
+   "expected": {
+    "prefix": "sp",
+    "accession": "Q4R572-2",
+    "entry_name": "1433B_MACFA",
+    "pname": "Isoform Short of 14-3-3 protein beta/alpha",
+    "os_name": "Macaca fascicularis",
+    "ncbi_tax_id": 9541,
+    "gname": "YWHAB",
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "sp|Q4R572-2|1433B_MACFA"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">UniRef50_Q9K794 Putative AgrB-like protein n=2 Tax=Bacillus TaxID=1386 RepID=AGRB_BACHD",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "Putative AgrB-like protein",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {
+     "n": "2",
+     "Tax": "Bacillus",
+     "TaxID": "1386",
+     "RepID": "AGRB_BACHD"
+    },
+    "identifier": "UniRef50_Q9K794"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">UPI0000000005 status=active",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": null,
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {
+     "status": "active"
+    },
+    "identifier": "UPI0000000005"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">UPI000013B286 Multidrug resistance protein MdtE OS=Escherichia coli (strain K12) OX=83333 GN=mdtE AC=P37636 SS=EMBL:AAC76538 PC=UP000000625:Chromosome",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "Multidrug resistance protein MdtE",
+    "os_name": "Escherichia coli (strain K12)",
+    "ncbi_tax_id": 83333,
+    "gname": "mdtE",
+    "pe": null,
+    "sv": null,
+    "extra": {
+     "AC": "P37636",
+     "SS": "EMBL:AAC76538",
+     "PC": "UP000000625:Chromosome"
+    },
+    "identifier": "UPI000013B286"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">UPI000000E135 Oligopeptide transporter subunit OS=Escherichia coli (strain K12) OX=83333 GN=oppF SS=EMBL:CQR80801 PC=UP000033172:Chromosome I",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "Oligopeptide transporter subunit",
+    "os_name": "Escherichia coli (strain K12)",
+    "ncbi_tax_id": 83333,
+    "gname": "oppF",
+    "pe": null,
+    "sv": null,
+    "extra": {
+     "SS": "EMBL:CQR80801",
+     "PC": "UP000033172:Chromosome I"
+    },
+    "identifier": "UPI000000E135"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">UPI00000000C1 Calmodulin-1|Calmodulin-2|Calmodulin-3 OS=Homo sapiens OX=9606 GN=CALM1|CALM2|CALM3 AC=P0DP23|P0DP24|P0DP25 SS=Ensembl:ENSP00000349467|Ensembl:ENSP00000272298|Ensembl:ENSP00000291295|Ensembl:ENSP00000472141 PC=UP000005640:Chromosome 14|Chromosome 2|Chromosome 19",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "Calmodulin-1|Calmodulin-2|Calmodulin-3",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "CALM1|CALM2|CALM3",
+    "pe": null,
+    "sv": null,
+    "extra": {
+     "AC": "P0DP23|P0DP24|P0DP25",
+     "SS": "Ensembl:ENSP00000349467|Ensembl:ENSP00000272298|Ensembl:ENSP00000291295|Ensembl:ENSP00000472141",
+     "PC": "UP000005640:Chromosome 14|Chromosome 2|Chromosome 19"
+    },
+    "identifier": "UPI00000000C1"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">sp|P05067 archived from Release 18.0 01-MAY-1991 SV=3",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P05067",
+    "entry_name": null,
+    "pname": "archived from Release 18.0 01-MAY-1991",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": 3,
+    "extra": {},
+    "identifier": "sp|P05067"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">tr|Q55167 archived from Release 17.0 01-JUN-2001 SV=1",
+   "expected": {
+    "prefix": "tr",
+    "accession": "Q55167",
+    "entry_name": null,
+    "pname": "archived from Release 17.0 01-JUN-2001",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": 1,
+    "extra": {},
+    "identifier": "tr|Q55167"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">sp|P05067 archived from Release 9.2/51.2 28-NOV-2006 SV=3",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P05067",
+    "entry_name": null,
+    "pname": "archived from Release 9.2/51.2 28-NOV-2006",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": 3,
+    "extra": {},
+    "identifier": "sp|P05067"
+   }
+  },
+  {
+   "source": "uniprot-help",
+   "header": ">tr|A0RTJ8 archived from Release 11.0/36.0 29-MAY-2007 SV=1",
+   "expected": {
+    "prefix": "tr",
+    "accession": "A0RTJ8",
+    "entry_name": null,
+    "pname": "archived from Release 11.0/36.0 29-MAY-2007",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": 1,
+    "extra": {},
+    "identifier": "tr|A0RTJ8"
+   }
+  },
+  {
+   "source": "ncbi-legacy/generic",
+   "header": ">gi|4557757|ref|NP_000240.1| MutL protein homolog 1 [Homo sapiens]",
+   "expected": {
+    "prefix": "gi",
+    "accession": "4557757",
+    "entry_name": null,
+    "pname": "MutL protein homolog 1 [Homo sapiens]",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "gi|4557757|ref|NP_000240.1|"
+   }
+  },
+  {
+   "source": "ncbi-legacy/generic",
+   "header": ">ref|NP_000240.1| MutL protein homolog 1 [Homo sapiens]",
+   "expected": {
+    "prefix": "ref",
+    "accession": "NP_000240.1",
+    "entry_name": null,
+    "pname": "MutL protein homolog 1 [Homo sapiens]",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "ref|NP_000240.1|"
+   }
+  },
+  {
+   "source": "ncbi-legacy/generic",
+   "header": ">gb|AAA59174.1| insulin receptor precursor [Homo sapiens]",
+   "expected": {
+    "prefix": "gb",
+    "accession": "AAA59174.1",
+    "entry_name": null,
+    "pname": "insulin receptor precursor [Homo sapiens]",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "gb|AAA59174.1|"
+   }
+  },
+  {
+   "source": "ncbi-legacy/generic",
+   "header": ">ENSP00000269305.4",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": null,
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "ENSP00000269305.4"
+   }
+  },
+  {
+   "source": "ncbi-legacy/generic",
+   "header": ">contig_12\tassembled from 3 reads",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "assembled from 3 reads",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "contig_12"
+   }
+  },
+  {
+   "source": "uniprotkb:P69905",
+   "header": ">sp|P69905|HBA_HUMAN Hemoglobin subunit alpha OS=Homo sapiens OX=9606 GN=HBA1 PE=1 SV=2",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P69905",
+    "entry_name": "HBA_HUMAN",
+    "pname": "Hemoglobin subunit alpha",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "HBA1",
+    "pe": 1,
+    "sv": 2,
+    "extra": {},
+    "identifier": "sp|P69905|HBA_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:P04637",
+   "header": ">sp|P04637|P53_HUMAN Cellular tumor antigen p53 OS=Homo sapiens OX=9606 GN=TP53 PE=1 SV=4",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P04637",
+    "entry_name": "P53_HUMAN",
+    "pname": "Cellular tumor antigen p53",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "TP53",
+    "pe": 1,
+    "sv": 4,
+    "extra": {},
+    "identifier": "sp|P04637|P53_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:P0DTC2",
+   "header": ">sp|P0DTC2|SPIKE_SARS2 Spike glycoprotein OS=Severe acute respiratory syndrome coronavirus 2 OX=2697049 GN=S PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P0DTC2",
+    "entry_name": "SPIKE_SARS2",
+    "pname": "Spike glycoprotein",
+    "os_name": "Severe acute respiratory syndrome coronavirus 2",
+    "ncbi_tax_id": 2697049,
+    "gname": "S",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|P0DTC2|SPIKE_SARS2"
+   }
+  },
+  {
+   "source": "uniprotkb:P0A7Y4",
+   "header": ">sp|P0A7Y4|RNH_ECOLI Ribonuclease HI OS=Escherichia coli (strain K12) OX=83333 GN=rnhA PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P0A7Y4",
+    "entry_name": "RNH_ECOLI",
+    "pname": "Ribonuclease HI",
+    "os_name": "Escherichia coli (strain K12)",
+    "ncbi_tax_id": 83333,
+    "gname": "rnhA",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|P0A7Y4|RNH_ECOLI"
+   }
+  },
+  {
+   "source": "uniprotkb:Q15118",
+   "header": ">sp|Q15118|PDK1_HUMAN [Pyruvate dehydrogenase (acetyl-transferring)] kinase isozyme 1, mitochondrial OS=Homo sapiens OX=9606 GN=PDK1 PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "Q15118",
+    "entry_name": "PDK1_HUMAN",
+    "pname": "[Pyruvate dehydrogenase (acetyl-transferring)] kinase isozyme 1, mitochondrial",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "PDK1",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|Q15118|PDK1_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:Q6GZX4",
+   "header": ">sp|Q6GZX4|001R_FRG3G Putative transcription factor 001R OS=Frog virus 3 (isolate Goorha) OX=654924 GN=FV3-001R PE=4 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "Q6GZX4",
+    "entry_name": "001R_FRG3G",
+    "pname": "Putative transcription factor 001R",
+    "os_name": "Frog virus 3 (isolate Goorha)",
+    "ncbi_tax_id": 654924,
+    "gname": "FV3-001R",
+    "pe": 4,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|Q6GZX4|001R_FRG3G"
+   }
+  },
+  {
+   "source": "uniprotkb:P31946",
+   "header": ">sp|P31946|1433B_HUMAN 14-3-3 protein beta/alpha OS=Homo sapiens OX=9606 GN=YWHAB PE=1 SV=3",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P31946",
+    "entry_name": "1433B_HUMAN",
+    "pname": "14-3-3 protein beta/alpha",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "YWHAB",
+    "pe": 1,
+    "sv": 3,
+    "extra": {},
+    "identifier": "sp|P31946|1433B_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:P01308",
+   "header": ">sp|P01308|INS_HUMAN Insulin OS=Homo sapiens OX=9606 GN=INS PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P01308",
+    "entry_name": "INS_HUMAN",
+    "pname": "Insulin",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "INS",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|P01308|INS_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:Q8WZ42",
+   "header": ">sp|Q8WZ42|TITIN_HUMAN Titin OS=Homo sapiens OX=9606 GN=TTN PE=1 SV=4",
+   "expected": {
+    "prefix": "sp",
+    "accession": "Q8WZ42",
+    "entry_name": "TITIN_HUMAN",
+    "pname": "Titin",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "TTN",
+    "pe": 1,
+    "sv": 4,
+    "extra": {},
+    "identifier": "sp|Q8WZ42|TITIN_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:P02769",
+   "header": ">sp|P02769|ALBU_BOVIN Albumin OS=Bos taurus OX=9913 GN=ALB PE=1 SV=4",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P02769",
+    "entry_name": "ALBU_BOVIN",
+    "pname": "Albumin",
+    "os_name": "Bos taurus",
+    "ncbi_tax_id": 9913,
+    "gname": "ALB",
+    "pe": 1,
+    "sv": 4,
+    "extra": {},
+    "identifier": "sp|P02769|ALBU_BOVIN"
+   }
+  },
+  {
+   "source": "uniprotkb:A0A024R161",
+   "header": ">tr|A0A024R161|A0A024R161_HUMAN Guanine nucleotide-binding protein subunit gamma OS=Homo sapiens OX=9606 GN=DNAJC25-GNG10 PE=1 SV=1",
+   "expected": {
+    "prefix": "tr",
+    "accession": "A0A024R161",
+    "entry_name": "A0A024R161_HUMAN",
+    "pname": "Guanine nucleotide-binding protein subunit gamma",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "DNAJC25-GNG10",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "tr|A0A024R161|A0A024R161_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:A0A0B4J2F0",
+   "header": ">sp|A0A0B4J2F0|PIOS1_HUMAN Protein PIGBOS1 OS=Homo sapiens OX=9606 GN=PIGBOS1 PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "A0A0B4J2F0",
+    "entry_name": "PIOS1_HUMAN",
+    "pname": "Protein PIGBOS1",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": "PIGBOS1",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|A0A0B4J2F0|PIOS1_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:Q3SA23",
+   "header": ">tr|Q3SA23|Q3SA23_HV1 Protein Nef (Fragment) OS=Human immunodeficiency virus type 1 OX=11676 GN=nef PE=3 SV=1",
+   "expected": {
+    "prefix": "tr",
+    "accession": "Q3SA23",
+    "entry_name": "Q3SA23_HV1",
+    "pname": "Protein Nef (Fragment)",
+    "os_name": "Human immunodeficiency virus type 1",
+    "ncbi_tax_id": 11676,
+    "gname": "nef",
+    "pe": 3,
+    "sv": 1,
+    "extra": {},
+    "identifier": "tr|Q3SA23|Q3SA23_HV1"
+   }
+  },
+  {
+   "source": "uniprotkb:Q8N2H2",
+   "header": ">tr|Q8N2H2|Q8N2H2_HUMAN Serine/threonine-protein OS=Homo sapiens OX=9606 PE=2 SV=1",
+   "expected": {
+    "prefix": "tr",
+    "accession": "Q8N2H2",
+    "entry_name": "Q8N2H2_HUMAN",
+    "pname": "Serine/threonine-protein",
+    "os_name": "Homo sapiens",
+    "ncbi_tax_id": 9606,
+    "gname": null,
+    "pe": 2,
+    "sv": 1,
+    "extra": {},
+    "identifier": "tr|Q8N2H2|Q8N2H2_HUMAN"
+   }
+  },
+  {
+   "source": "uniprotkb:P04224",
+   "header": ">sp|P04224|HA22_MOUSE H-2 class II histocompatibility antigen, E-K alpha chain OS=Mus musculus OX=10090 PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P04224",
+    "entry_name": "HA22_MOUSE",
+    "pname": "H-2 class II histocompatibility antigen, E-K alpha chain",
+    "os_name": "Mus musculus",
+    "ncbi_tax_id": 10090,
+    "gname": null,
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|P04224|HA22_MOUSE"
+   }
+  },
+  {
+   "source": "uniprotkb:Q8I6R7",
+   "header": ">sp|Q8I6R7|ACN2_ACAGO Acanthoscurrin-2 (Fragment) OS=Acanthoscurria gomesiana OX=115339 GN=acantho2 PE=1 SV=1",
+   "expected": {
+    "prefix": "sp",
+    "accession": "Q8I6R7",
+    "entry_name": "ACN2_ACAGO",
+    "pname": "Acanthoscurrin-2 (Fragment)",
+    "os_name": "Acanthoscurria gomesiana",
+    "ncbi_tax_id": 115339,
+    "gname": "acantho2",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "sp|Q8I6R7|ACN2_ACAGO"
+   }
+  },
+  {
+   "source": "uniprotkb:P27748",
+   "header": ">sp|P27748|ACOX_CUPNH Acetoin catabolism protein X OS=Cupriavidus necator (strain ATCC 17699 / DSM 428 / KCTC 22496 / NCIMB 10442 / H16 / Stanier 337) OX=381666 GN=acoX PE=4 SV=2",
+   "expected": {
+    "prefix": "sp",
+    "accession": "P27748",
+    "entry_name": "ACOX_CUPNH",
+    "pname": "Acetoin catabolism protein X",
+    "os_name": "Cupriavidus necator (strain ATCC 17699 / DSM 428 / KCTC 22496 / NCIMB 10442 / H16 / Stanier 337)",
+    "ncbi_tax_id": 381666,
+    "gname": "acoX",
+    "pe": 4,
+    "sv": 2,
+    "extra": {},
+    "identifier": "sp|P27748|ACOX_CUPNH"
+   }
+  },
+  {
+   "source": "ncbi:NP_000537.3",
+   "header": ">NP_000537.3 cellular tumor antigen p53 isoform a [Homo sapiens]",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "cellular tumor antigen p53 isoform a [Homo sapiens]",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "NP_000537.3"
+   }
+  },
+  {
+   "source": "ncbi:XP_016880112.1",
+   "header": ">XP_016880112.1 galectin-9 isoform X1 [Homo sapiens]",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "galectin-9 isoform X1 [Homo sapiens]",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "XP_016880112.1"
+   }
+  },
+  {
+   "source": "ncbi:AAA59174.1",
+   "header": ">AAA59174.1 insulin receptor precursor [Homo sapiens]",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "insulin receptor precursor [Homo sapiens]",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "AAA59174.1"
+   }
+  },
+  {
+   "source": "ncbi:WP_000184067.1",
+   "header": ">WP_000184067.1 MULTISPECIES: MbtH family protein [Bacillus]",
+   "expected": {
+    "prefix": null,
+    "accession": null,
+    "entry_name": null,
+    "pname": "MULTISPECIES: MbtH family protein [Bacillus]",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": null,
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "WP_000184067.1"
+   }
+  }
+ ],
+ "known_differences": [
+  {
+   "source": "uniprot-help",
+   "header": ">pp562|UPI0000126990 96% UP000000625 AAC76437 OX=83333 OS=Escherichia coli (strain K12) ; sp|P13001|BIOH_ECOLI Pimeloyl-[acyl-carrier protein] methyl ester esterase GN=bioH PE=1 SV=1",
+   "expected": {
+    "prefix": "pp562",
+    "accession": "UPI0000126990",
+    "entry_name": null,
+    "pname": "96% UP000000625 AAC76437",
+    "os_name": "Escherichia coli (strain K12)",
+    "ncbi_tax_id": 83333,
+    "gname": "bioH",
+    "pe": 1,
+    "sv": 1,
+    "extra": {},
+    "identifier": "pp562|UPI0000126990"
+   },
+   "reason": "Pan-proteome headers embed a second UniProtKB header after ' ; '. It has no field of its own, so the OS= value runs on to the next KEY= and takes the annotation block with it."
+  }
+ ]
+}

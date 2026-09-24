@@ -141,3 +141,53 @@ def test_edited_extra_wins_over_raw_header():
     (parsed,) = read_fasta(io.StringIO(">x name FOO=1\nACDE\n"))
     edited = dataclasses.replace(parsed, extra={"FOO": "2"})
     assert _write_str([edited]).splitlines()[0] == ">x name FOO=2"
+
+
+def test_cleared_field_stays_cleared_when_entry_has_no_name():
+    # Found by Hypothesis: with no protein name the rebuild fell back to the
+    # parsed (stale) description and re-added the cleared key from it.
+    (parsed,) = read_fasta(io.StringIO(">x OS=Homo sapiens GN=A\nACDE\n"))
+    assert _write_str([dataclasses.replace(parsed, gname=None)]).splitlines()[0] == ">x OS=Homo sapiens"
+    (parsed,) = read_fasta(io.StringIO(">UPI0000000005 status=active\nACDE\n"))
+    assert _write_str([dataclasses.replace(parsed, extra={})]).splitlines()[0] == ">UPI0000000005"
+
+
+def test_cleared_pname_stays_cleared():
+    (parsed,) = read_fasta(io.StringIO(">x Old name GN=A\nACDE\n"))
+    assert _write_str([dataclasses.replace(parsed, pname=None)]).splitlines()[0] == ">x GN=A"
+
+
+def test_edited_description_is_still_used_as_fallback():
+    (parsed,) = read_fasta(io.StringIO(">x OS=Homo sapiens\nACDE\n"))
+    edited = dataclasses.replace(parsed, description="New name OS=Homo sapiens")
+    assert _write_str([edited]).splitlines()[0] == ">x New name OS=Homo sapiens"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"pname": "two\nlines"},
+        {"os_name": "Homo\rsapiens"},
+        {"extra": {"K": "a\nb"}},
+        {"identifier": "a\nb"},
+        {"identifier": "a b"},
+        {"raw_header": "x\ny", "identifier": "x\ny"},
+        {"sequence": "AC\n>DE"},
+        {"sequence": "AC DE"},
+        {"sequence": ">ACDE"},
+        {"sequence": ";ACDE"},
+    ],
+)
+def test_values_that_would_corrupt_the_file_raise(change):
+    # Found by Hypothesis: a line break in a field was written as-is, so the
+    # file read back with a different header or an extra entry.
+    entry = dataclasses.replace(SequenceEntry(identifier="x", sequence="ACDE"), **change)
+    with pytest.raises(FastaWriteError):
+        _write_str([entry])
+
+
+def test_gt_or_semicolon_inside_a_sequence_line_is_written():
+    entry = SequenceEntry(identifier="x", sequence="AC>D;E")
+    assert _write_str([entry]) == ">x\nAC>D;E\n"
+    with pytest.raises(FastaWriteError):
+        _write_str([entry], line_width=2)

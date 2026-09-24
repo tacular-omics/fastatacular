@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import IO
 
 from fastatacular._models import SequenceEntry
-from fastatacular._parser import _KV_PATTERN, _parse_header_line
+from fastatacular._parser import _KV_PATTERN, _parse_header_line, _ParsedHeader
 from fastatacular.errors import FastaParseError, FastaWriteError
 
 _SEQ_LINE_WIDTH = 60
@@ -28,13 +28,14 @@ _HEADER_FIELDS = (
 )
 
 
-def _raw_header_matches(entry: SequenceEntry) -> bool:
-    """True if parsing ``entry.raw_header`` gives exactly the entry's header fields."""
+def _parse_raw_header(entry: SequenceEntry) -> _ParsedHeader | None:
+    """Parse ``entry.raw_header``, or return None if it is empty or unparseable."""
+    if not entry.raw_header:
+        return None
     try:
-        parsed = _parse_header_line(">" + entry.raw_header, 0)
+        return _parse_header_line(">" + entry.raw_header, 0)
     except FastaParseError:
-        return False
-    return all(getattr(parsed, name) == getattr(entry, name) for name in _HEADER_FIELDS)
+        return None
 
 
 def _build_header_line(entry: SequenceEntry) -> str:
@@ -49,17 +50,24 @@ def _build_header_line(entry: SequenceEntry) -> str:
     When falling back to ``description`` (``pname`` unset), its ``KEY=value``
     text is not copied verbatim: the structured fields are written instead, and
     only keys that no structured field or ``extra`` covers are kept from it.
+    A ``description`` that is still the one parsed from ``raw_header`` is not
+    used at all: it is stale, and reading it would undo a cleared field.
     """
-    if entry.raw_header and _raw_header_matches(entry):
+    parsed = _parse_raw_header(entry)
+    if parsed is not None and all(getattr(parsed, name) == getattr(entry, name) for name in _HEADER_FIELDS):
         return f">{entry.raw_header}"
+
+    description = entry.description
+    if parsed is not None and description == parsed.description:
+        description = None
 
     parts: list[str] = [entry.identifier]
     desc_extra: dict[str, str] = {}
     if entry.pname:
         parts.append(entry.pname)
-    elif entry.description:
-        matches = list(_KV_PATTERN.finditer(entry.description))
-        name = entry.description[: matches[0].start()].rstrip() if matches else entry.description
+    elif description:
+        matches = list(_KV_PATTERN.finditer(description))
+        name = description[: matches[0].start()].rstrip() if matches else description
         if name:
             parts.append(name)
         desc_extra = {m["key"]: m["val"].strip() for m in matches}
@@ -95,15 +103,24 @@ def _write_entry(entry: SequenceEntry, out: IO[str], line_width: int) -> None:
         raise FastaWriteError("SequenceEntry has an empty identifier")
     if not entry.sequence:
         raise FastaWriteError(f"SequenceEntry {entry.identifier!r} has an empty sequence")
+    if any(c.isspace() for c in entry.identifier):
+        raise FastaWriteError(f"SequenceEntry identifier {entry.identifier!r} contains whitespace")
+    if any(c.isspace() for c in entry.sequence):
+        raise FastaWriteError(f"SequenceEntry {entry.identifier!r} sequence contains whitespace")
 
-    out.write(_build_header_line(entry) + "\n")
+    header = _build_header_line(entry)
+    if "\n" in header or "\r" in header:
+        raise FastaWriteError(f"SequenceEntry {entry.identifier!r} header contains a line break")
 
     seq = entry.sequence
-    if line_width <= 0:
-        out.write(seq + "\n")
-        return
-    for i in range(0, len(seq), line_width):
-        out.write(seq[i : i + line_width] + "\n")
+    step = line_width if line_width > 0 else len(seq)
+    lines = [seq[i : i + step] for i in range(0, len(seq), step)]
+    if any(line[0] in ">;" for line in lines):
+        # The reader would take such a line as a header or a comment.
+        raise FastaWriteError(f"SequenceEntry {entry.identifier!r} sequence would start a line with '>' or ';'")
+    out.write(header + "\n")
+    for line in lines:
+        out.write(line + "\n")
 
 
 def write_fasta(
