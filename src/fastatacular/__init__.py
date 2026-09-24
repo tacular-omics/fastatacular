@@ -14,7 +14,7 @@ from fastatacular.decoys import (
     train_markov_model,
     write_decoy_fasta,
 )
-from fastatacular.errors import DecoyError, FastaError, FastaParseError, FastaWriteError
+from fastatacular.errors import DecoyError, FastaError, FastaKeyError, FastaParseError, FastaWriteError
 
 __version__ = "1.0.0"
 
@@ -22,6 +22,7 @@ __all__ = [
     "DecoyError",
     "FastaError",
     "FastaIndex",
+    "FastaKeyError",
     "FastaParseError",
     "FastaReader",
     "FastaWriteError",
