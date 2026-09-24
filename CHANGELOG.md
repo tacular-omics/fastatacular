@@ -10,7 +10,10 @@ All notable changes to this project will be documented in this file.
   by full identifier (the `.fai` name, the default) or by accession (`key="accession"`).
   One pass records each entry's byte range; `index[key]` reads only that entry.
   `write_fai()` and `FastaIndex.from_fai()` save and load a samtools-compatible `.fai`.
-  Compressed files raise `FastaError`; a missing key raises `FastaKeyError`.
+  Compressed files, FIFOs and pipes raise `FastaError`; a missing key raises
+  `FastaKeyError`. A repeated key raises `FastaError`, or with `duplicates="first"` the
+  first entry is kept and later ones skipped (like `samtools faidx`), with one logged
+  warning giving the count.
 - `FastaKeyError(FastaError, KeyError)`.
 - `to_records(source)`, `FastaReader.to_records()` and `SequenceEntry.to_record()`: one
   plain `dict` per entry with stable snake_case keys (`RECORD_KEYS`), ready for
@@ -24,7 +27,8 @@ All notable changes to this project will be documented in this file.
   models for human, mouse, yeast and E. coli trained on UniProtKB/Swiss-Prot release
   2026_03 (CC BY 4.0, see `src/fastatacular/data/markov/NOTICE.md`).
 - Compressed input: `read_fasta` and `FastaReader` read gzip, bzip2 and xz files given
-  as paths, detected from the magic bytes. Paths are opened once, so pipes and FIFOs work; `bz2` and
+  as paths, detected from the magic bytes. Paths are opened once, so pipes and FIFOs work
+  (including a writer whose first chunk is shorter than the magic number); `bz2` and
   `lzma` are imported only when needed.
 - PEFF files read as plain FASTA: `#` lines before the first `>` header (the PEFF file
   header) are skipped instead of raising "Sequence data appears before any '>' header".

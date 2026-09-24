@@ -184,9 +184,13 @@ by_acc["P31946"]
   or `Reverse_sp|P1|X` share an accession.
 - `key="accession"` keys entries by accession (`P31946` for `sp|P31946|1433B_HUMAN`, or
   the whole identifier when it has no `|`). It needs unique accessions.
-- A repeated key raises `FastaError` naming the first one. A missing key raises
-  `FastaKeyError`, which is also a `KeyError`.
-- The file must be uncompressed. gzip (including bgzip), bzip2 and xz raise `FastaError`:
+- A repeated key raises `FastaError` naming the first one. Real databases do repeat
+  identifiers (IP2 exports, merged databases): `FastaIndex(path, duplicates="first")`
+  keeps the first entry for each key and skips the rest, as `samtools faidx` does, and
+  logs one warning with the number skipped. `from_fai` takes the same option.
+- A missing key raises `FastaKeyError`, which is also a `KeyError`.
+- The file must be a regular, uncompressed file. A FIFO, pipe or directory raises
+  `FastaError`: save the input to a file first, or read it once with `FastaReader`. gzip (including bgzip), bzip2 and xz raise `FastaError`:
   decompress first (`gunzip -k human.fasta.gz`). bgzip/`.gzi` is not supported.
 - `.fai` caveats: the name column is the first header word (mapped to the accession on
   load with `key="accession"`). Like samtools, `write_fai()` needs every sequence line of an

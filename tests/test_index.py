@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import gzip
 import json
+import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -161,6 +163,87 @@ def test_duplicate_accession_names_the_first(tmp_path: Path) -> None:
 def test_duplicate_identifier(tmp_path: Path) -> None:
     with pytest.raises(FastaError, match=r"Duplicate identifier 'a'"):
         FastaIndex(_write(tmp_path, "d", ">a\nMK\n>a x\nMK\n"))
+
+
+def test_duplicate_error_hints_at_first(tmp_path: Path) -> None:
+    with pytest.raises(FastaError) as info:
+        FastaIndex(_write(tmp_path, "d", ">a\nMK\n>a x\nMK\n"))
+    assert any('duplicates="first"' in n for n in info.value.__notes__)
+
+
+def test_duplicates_first_keeps_first_and_warns_once(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    text = ">a one\nMK\n>b\nPE\n>a two\nQQ\n>c\nWW\n>a three\nRR\n>b again\nYY\n"
+    path = _write(tmp_path, "d", text)
+    with caplog.at_level(logging.WARNING, logger="fastatacular"):
+        index = FastaIndex(path, duplicates="first")
+    assert list(index) == ["a", "b", "c"]
+    assert index["a"].sequence == "MK"
+    assert index["b"].sequence == "PE"
+    assert index["c"].sequence == "WW"
+    [record] = caplog.records
+    assert record.levelno == logging.WARNING
+    assert "skipped 3 entries" in record.getMessage()
+    assert str(path) in record.getMessage()
+
+
+def test_duplicates_first_accession(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    path = _write(tmp_path, "d", ">sp|P1|A\nMK\n>tr|P1|B\nPE\n")
+    with caplog.at_level(logging.WARNING, logger="fastatacular"):
+        index = FastaIndex(path, key="accession", duplicates="first")
+    assert list(index) == ["P1"]
+    assert index.identifier("P1") == "sp|P1|A"
+    assert "skipped 1 entry with a repeated accession" in caplog.text
+
+
+def test_no_duplicates_no_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger="fastatacular"):
+        FastaIndex(_write(tmp_path, "d", ">a\nMK\n>b\nPE\n"), duplicates="first")
+    assert caplog.records == []
+
+
+def test_duplicates_bad_value(tmp_path: Path) -> None:
+    with pytest.raises(FastaError, match="duplicates must be"):
+        FastaIndex(_write(tmp_path, "d", ">a\nMK\n"), duplicates="last")  # type: ignore[arg-type]
+
+
+def test_duplicates_first_fai_roundtrip(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    # The .fai leaves the skipped entries out, as samtools does; from_fai must still end
+    # each entry at the next header in the file, not at the next .fai row.
+    path = _write(tmp_path, "d", ">a\nMK\n>a x\nQQ\n>b\nPE\n")
+    index = FastaIndex(path, duplicates="first")
+    index.write_fai()
+    assert Path(f"{path}.fai").read_text(encoding="utf-8") == "a\t2\t3\t2\t3\nb\t2\t17\t2\t3\n"
+    loaded = FastaIndex.from_fai(path)
+    assert list(loaded) == ["a", "b"]
+    assert loaded["a"].sequence == "MK"
+    assert loaded["b"].sequence == "PE"
+    assert loaded.locate("a") == index.locate("a")
+    acc_path = _write(tmp_path, "e", ">sp|P1|A\nMK\n>tr|P1|B\nPE\n")
+    Path(f"{acc_path}.fai").write_text("sp|P1|A\t2\t9\t2\t3\ntr|P1|B\t2\t21\t2\t3\n", encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="fastatacular"):
+        by_acc = FastaIndex.from_fai(acc_path, key="accession", duplicates="first")
+    assert list(by_acc) == ["P1"]
+    assert "skipped 1 entry" in caplog.text
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs os.mkfifo")
+def test_fifo_is_refused(tmp_path: Path) -> None:
+    fifo = tmp_path / "pipe.fasta"
+    os.mkfifo(fifo)
+    with pytest.raises(FastaError, match="not a regular file"):
+        FastaIndex(fifo)  # would block on open() if it got that far
+    with pytest.raises(FastaError, match="not a regular file"):
+        FastaIndex.from_fai(fifo, tmp_path / "x.fai")
+
+
+def test_directory_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(FastaError, match="not a regular file"):
+        FastaIndex(tmp_path)
+
+
+def test_missing_file_is_file_not_found(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        FastaIndex(tmp_path / "missing.fasta")
 
 
 def test_decoy_database(tmp_path: Path) -> None:

@@ -92,9 +92,11 @@ Exported from `fastatacular` (`__all__`):
 - Decoys (`fastatacular.decoys`, re-exported): `make_decoys`, `make_decoy_sequence`,
   `write_decoy_fasta`, `is_decoy`, `MarkovModel`, `train_markov_model`,
   `load_markov_model`, `DecoyError` (`FastaError` subclass). Guide: `docs/decoys.md`.
-- `FastaIndex(path, key="identifier"|"accession")` (Mapping; missing key ->
-  `FastaKeyError`), `.from_fai()`, `.write_fai()`, `.locate()`,
-  `.identifier()`. Uncompressed files only (compressed -> `FastaError`).
+- `FastaIndex(path, key="identifier"|"accession", duplicates="error"|"first")`
+  (Mapping; missing key -> `FastaKeyError`), `.from_fai()`, `.write_fai()`, `.locate()`,
+  `.identifier()`. Regular uncompressed files only (compressed, FIFO, pipe ->
+  `FastaError`). `duplicates="first"` logs one warning via `logging`, the package's
+  only logger.
 - `to_records(source)` / `FastaReader.to_records()` / `SequenceEntry.to_record()`: flat
   dicts with the keys of `RECORD_KEYS` (a stable contract: add keys only at a major).
   README "Tables with pandas or polars" lists them; `tests/test_records.py` execs it.

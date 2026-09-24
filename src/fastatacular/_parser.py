@@ -8,7 +8,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
-from typing import IO, Self
+from typing import IO, Any, Self
 
 from fastatacular._models import SequenceEntry
 from fastatacular.errors import FastaError, FastaParseError
@@ -254,6 +254,46 @@ def _decompressor(kind: str, raw: io.BufferedReader) -> io.BufferedIOBase:
         raise err from e
 
 
+class _Prefixed(io.RawIOBase):
+    """Bytes already read from ``raw`` (``head``), then the rest of ``raw``."""
+
+    def __init__(self, head: bytes, raw: io.BufferedReader) -> None:
+        super().__init__()
+        self._head = head
+        self._raw = raw
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: Any) -> int:
+        if self._head:
+            n = min(len(buffer), len(self._head))
+            buffer[:n] = self._head[:n]
+            self._head = self._head[n:]
+            return n
+        return self._raw.readinto(buffer)
+
+    def close(self) -> None:
+        try:
+            self._raw.close()
+        finally:
+            super().close()
+
+
+def _with_head(raw: io.BufferedReader, n: int = 6) -> tuple[io.BufferedReader, bytes]:
+    """Return a reader positioned at the start of ``raw`` and its first ``n`` bytes.
+
+    ``peek`` returns only what one read delivered, which on a pipe can be shorter than
+    ``n`` (a writer that sends one byte first). Then read until ``n`` bytes or the end
+    of input and put them back in front of the stream.
+    """
+    head = raw.peek(n)[:n]
+    if len(head) >= n:
+        return raw, head
+    head = raw.read(n)  # blocks until n bytes or EOF
+    return io.BufferedReader(_Prefixed(head, raw)), head
+
+
 def _open_path(source: str | Path) -> tuple[IO[str], bool]:
     """Open a FASTA path as UTF-8 text, decompressing gzip/bzip2/xz input.
 
@@ -263,7 +303,8 @@ def _open_path(source: str | Path) -> tuple[IO[str], bool]:
     """
     raw = open(source, "rb")  # noqa: SIM115 - closed by the returned handle
     try:
-        kind = _kind(raw.peek(6)[:6])
+        raw, head = _with_head(raw)
+        kind = _kind(head)
         if kind is None:
             return io.TextIOWrapper(raw, encoding="utf-8-sig"), False
         return _TextOverRaw(_decompressor(kind, raw), raw), True
