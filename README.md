@@ -195,6 +195,21 @@ record has these keys, in this order (`fastatacular.RECORD_KEYS`):
 | `length` | int | sequence length |
 | `sequence` | str | the residues |
 
+The same fields in [pefftacular](https://github.com/tacular-omics/pefftacular) records have
+other names where each package follows its own model. Rename these to put both in one
+frame:
+
+| field | fastatacular | pefftacular |
+|---|---|---|
+| database prefix | `prefix` | `prefix` |
+| accession | `accession` | `db_unique_id` |
+| entry name | `entry_name` | `id` |
+| protein name, gene | `pname`, `gname` | `pname`, `gname` |
+| organism name | `os_name` | `tax_name` |
+| taxon id, PE, SV | `ncbi_tax_id`, `pe`, `sv` | `ncbi_tax_id`, `pe`, `sv` |
+| other keys | `extra`, `KEY=value` pairs | `extra`, `\Key=value` pairs |
+| length, residues | `length`, `sequence` | `length`, `sequence` |
+
 ## Error handling
 
 Parse errors raise `FastaParseError`:

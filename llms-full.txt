@@ -534,8 +534,12 @@ Full guide: docs/decoys.md. Signatures (options shared by all four functions):
 One plain dict per entry with the keys of RECORD_KEYS, in this order: identifier,
 prefix, accession, entry_name, pname, gname, os_name, ncbi_tax_id (int), pe (int),
 sv (int), description, extra ("KEY=value KEY2=value2" or None), raw_header,
-length (int), sequence. Missing values are None. fastatacular does not depend on
-pandas or polars; pass the list to them yourself:
+length (int), sequence. Missing values are None.
+Record keys differ from pefftacular's because each follows its own model. To stack the
+two in one frame, rename: accession<->db_unique_id, entry_name<->id, os_name<->tax_name
+(prefix, pname, gname, ncbi_tax_id, pe, sv, length, sequence are shared; `extra` is
+"KEY=value" text here and "\Key=value" text there).
+fastatacular does not depend on pandas or polars; pass the list to them yourself:
 
     import pandas as pd
     df = pd.DataFrame(to_records("human.fasta"))
