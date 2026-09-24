@@ -50,6 +50,7 @@ src/fastatacular/
   _parser.py    # header regexes, _parse_header_line, _iter_entries (the streaming core),
                 # FastaReader (context manager) and read_fasta (eager list)
   _writer.py    # _build_header_line (raw_header if it still matches the fields, else rebuild), write_fasta
+  _records.py   # to_records / RECORD_KEYS: flat dicts for data frames (no pandas/polars dependency)
   decoys.py     # public module: decoy methods, MarkovModel, train/load; data/markov/*.json.gz models
   errors.py     # FastaError(ValueError) base; FastaParseError (.line/.context/.hint); FastaWriteError (.index/.hint)
 tests/
@@ -90,6 +91,9 @@ Exported from `fastatacular` (`__all__`):
 - Decoys (`fastatacular.decoys`, re-exported): `make_decoys`, `make_decoy_sequence`,
   `write_decoy_fasta`, `is_decoy`, `MarkovModel`, `train_markov_model`,
   `load_markov_model`, `DecoyError` (`FastaError` subclass). Guide: `docs/decoys.md`.
+- `to_records(source)` / `FastaReader.to_records()` / `SequenceEntry.to_record()`: flat
+  dicts with the keys of `RECORD_KEYS` (a stable contract: add keys only at a major).
+  README "Tables with pandas or polars" lists them; `tests/test_records.py` execs it.
 - `__version__`.
 
 ## Conventions

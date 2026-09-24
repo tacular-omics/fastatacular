@@ -49,3 +49,9 @@ class SequenceEntry:
 
     # Explicitly unhashable (``extra`` is a dict); dataclass keeps an explicit ``None``.
     __hash__ = None  # type: ignore[assignment]
+
+    def to_record(self) -> dict[str, str | int | None]:
+        """Return this entry as a flat ``dict`` (the keys of :func:`fastatacular.to_records`)."""
+        from fastatacular._records import entry_to_record
+
+        return entry_to_record(self)
