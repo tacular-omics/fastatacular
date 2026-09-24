@@ -98,29 +98,61 @@ def _build_header_line(entry: SequenceEntry) -> str:
     return ">" + " ".join(parts)
 
 
-def _write_entry(entry: SequenceEntry, out: IO[str], line_width: int) -> None:
+def _prepare_entry(entry: SequenceEntry, index: int, line_width: int) -> tuple[str, int]:
+    """Validate ``entry`` and return its header line and sequence line step.
+
+    Raises ``FastaWriteError`` (with ``index``) if the entry cannot be written
+    as FASTA that reads back to the same entry.
+    """
     if not entry.identifier:
-        raise FastaWriteError("SequenceEntry has an empty identifier")
+        raise FastaWriteError(
+            "SequenceEntry has an empty identifier", index=index, hint="Set identifier to a non-empty token"
+        )
     if not entry.sequence:
-        raise FastaWriteError(f"SequenceEntry {entry.identifier!r} has an empty sequence")
+        raise FastaWriteError(
+            f"SequenceEntry {entry.identifier!r} has an empty sequence",
+            index=index,
+            hint="A FASTA entry needs at least one residue",
+        )
     if any(c.isspace() for c in entry.identifier):
-        raise FastaWriteError(f"SequenceEntry identifier {entry.identifier!r} contains whitespace")
+        raise FastaWriteError(
+            f"SequenceEntry identifier {entry.identifier!r} contains whitespace",
+            index=index,
+            hint="The identifier ends at the first whitespace; put the rest in pname or description",
+        )
     if any(c.isspace() for c in entry.sequence):
-        raise FastaWriteError(f"SequenceEntry {entry.identifier!r} sequence contains whitespace")
+        raise FastaWriteError(
+            f"SequenceEntry {entry.identifier!r} sequence contains whitespace",
+            index=index,
+            hint="Pass the residues only; the writer wraps the sequence itself",
+        )
 
     header = _build_header_line(entry)
     if "\n" in header or "\r" in header:
-        raise FastaWriteError(f"SequenceEntry {entry.identifier!r} header contains a line break")
+        raise FastaWriteError(
+            f"SequenceEntry {entry.identifier!r} header contains a line break",
+            index=index,
+            hint="A FASTA header is one line; remove the \\n or \\r from the header fields",
+        )
 
     seq = entry.sequence
     step = line_width if line_width > 0 else len(seq)
-    lines = [seq[i : i + step] for i in range(0, len(seq), step)]
-    if any(line[0] in ">;" for line in lines):
+    if any(seq[i] in ">;" for i in range(0, len(seq), step)):
         # The reader would take such a line as a header or a comment.
-        raise FastaWriteError(f"SequenceEntry {entry.identifier!r} sequence would start a line with '>' or ';'")
-    out.write(header + "\n")
-    for line in lines:
-        out.write(line + "\n")
+        raise FastaWriteError(
+            f"SequenceEntry {entry.identifier!r} sequence would start a line with '>' or ';'",
+            index=index,
+            hint="Change line_width, or remove '>' / ';' from the sequence",
+        )
+    return header, step
+
+
+def _write_prepared(items: list[tuple[SequenceEntry, str, int]], out: IO[str]) -> None:
+    for entry, header, step in items:
+        seq = entry.sequence
+        out.write(header + "\n")
+        for i in range(0, len(seq), step):
+            out.write(seq[i : i + step] + "\n")
 
 
 def write_fasta(
@@ -134,14 +166,17 @@ def write_fasta(
     ``dest`` may be a path or an already-opened text-mode file object.
     ``line_width`` controls sequence wrapping; pass ``0`` (or any value ``<= 0``)
     to emit each sequence on a single line.
+
+    Every entry is validated before anything is written: if one is unwritable,
+    ``FastaWriteError`` is raised (its ``index`` names the entry), a path
+    ``dest`` is not created or truncated, and nothing is written to a handle.
     """
+    items = [(entry, *_prepare_entry(entry, i, line_width)) for i, entry in enumerate(entries)]
     if isinstance(dest, (str, Path)):
         with Path(dest).open("w", encoding="utf-8") as fh:
-            for entry in entries:
-                _write_entry(entry, fh, line_width)
+            _write_prepared(items, fh)
     else:
-        for entry in entries:
-            _write_entry(entry, dest, line_width)
+        _write_prepared(items, dest)
 
 
 __all__ = ["write_fasta"]

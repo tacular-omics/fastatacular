@@ -143,7 +143,13 @@ except FastaParseError as e:
     print(e.context)  # surrounding line content
 ```
 
-Write errors raise `FastaWriteError`.
+Write errors raise `FastaWriteError`, whose `index` names the bad entry. Every entry is
+validated before anything is written, so a failed `write_fasta` leaves no partial file.
+Both errors subclass `FastaError` (a `ValueError`), so `except FastaError` catches either.
+
+`SequenceEntry` is frozen but not hashable (its `extra` field is a dict), so key sets and
+dicts by `entry.identifier`, not by the entry. A `FastaReader` is single-pass: iterate it
+once, or open a new one to read the file again.
 
 ## Development
 

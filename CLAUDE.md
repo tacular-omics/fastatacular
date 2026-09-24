@@ -50,7 +50,7 @@ src/fastatacular/
   _parser.py    # header regexes, _parse_header_line, _iter_entries (the streaming core),
                 # FastaReader (context manager) and read_fasta (eager list)
   _writer.py    # _build_header_line (raw_header if it still matches the fields, else rebuild), write_fasta
-  errors.py     # FastaParseError(ValueError) with .line/.context; FastaWriteError(ValueError)
+  errors.py     # FastaError(ValueError) base; FastaParseError (.line/.context/.hint); FastaWriteError (.index/.hint)
 tests/
   test_basic.py      # version smoke test
   test_reader.py     # header parsing, comments, blank lines, error cases
@@ -65,7 +65,8 @@ Data flow (read): text lines -> `_iter_entries` skips blank lines and `;` commen
 `_KV_PATTERN` pulls `KEY=value` pairs) -> all whitespace is removed from sequence lines and they are joined ->
 `_build_entry` makes a `SequenceEntry`, raising if the sequence is empty.
 
-Data flow (write): `_write_entry` validates identifier/sequence -> header is
+Data flow (write): `_prepare_entry` validates every entry and builds its header first (nothing is
+written if any fails) -> header is
 `raw_header` verbatim if non-empty and it still parses to the entry's fields, else rebuilt as
 `identifier [pname|description] OS= OX= GN= PE= SV= extra...` -> sequence wrapped at
 `line_width` (default 60, `<= 0` means one line).
@@ -80,9 +81,11 @@ Exported from `fastatacular` (`__all__`):
 - `SequenceEntry`: frozen dataclass (`identifier`, `sequence`, `prefix`, `accession`,
   `entry_name`, `description`, `pname`, `gname`, `os_name`, `ncbi_tax_id`, `pe`, `sv`,
   `extra`, `raw_header`).
-- `FastaParseError`: `ValueError` subclass; `.line` (1-based) and `.context`; message
-  is prefixed `Line N: `.
-- `FastaWriteError`: `ValueError` subclass for unwritable entries.
+- `FastaError`: `ValueError` subclass, base of both errors below.
+- `FastaParseError`: `FastaError` subclass; `.line` (1-based), `.context`, `.hint`;
+  message is prefixed `Line N: `.
+- `FastaWriteError`: `FastaError` subclass for unwritable entries; `.index` (0-based
+  entry position) and `.hint`; message is prefixed `Entry N: `.
 - `__version__`.
 
 ## Conventions
@@ -119,7 +122,8 @@ Exported from `fastatacular` (`__all__`):
   `pname` is the part before the first key (or all of it when there are no keys).
 - `accession` is the *second* pipe field (`sp|P12345|...` -> `P12345`); `entry_name`
   is only set for exactly three-field `db|ACC|NAME` ids.
-- `SequenceEntry` is frozen but not hashable (`extra` is a `dict`).
+- `SequenceEntry` is frozen but not hashable (`extra` is a `dict`; `__hash__ = None` explicitly).
+- `FastaReader` is single-pass: a second iteration continues where the first stopped (empty after a full pass).
 - `FastaReader` errors are raised lazily, at the bad entry during iteration, not on
   open. Calling `iter()` outside `with` raises `RuntimeError`.
 - An entry with no sequence lines (including the last one in the file) raises

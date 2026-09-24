@@ -4,8 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `FastaError(ValueError)`, exported base class of `FastaParseError` and
+  `FastaWriteError`; `except FastaError` catches every fastatacular error.
+- Errors carry a `hint` (also shown as a traceback note). `FastaWriteError` has an
+  `index` (0-based entry position) and its message is prefixed `Entry N: `.
+
+### Changed
+
+- `SequenceEntry` is explicitly unhashable (`__hash__ = None`): its `extra` field is a
+  dict. `hash(entry)` still raises `TypeError`, now before looking at the fields, and
+  `isinstance(entry, collections.abc.Hashable)` is `False`.
+- `FastaReader.__enter__` is typed to return `Self`. Iterating a reader a second time is
+  documented as continuing where the first iteration stopped (empty after a full pass).
+- Classifier `Development Status :: 5 - Production/Stable`.
+
 ### Fixed
 
+- `write_fasta` validates every entry before writing, so an unwritable entry no longer
+  leaves a partial file: a path `dest` is not created or truncated and nothing is
+  written to a handle.
 - Editing a parsed entry (`dataclasses.replace(entry, gname="XYZ")`) now writes the
   edit. `raw_header` is written verbatim only while it still parses to the entry's
   fields, so unedited entries still round-trip byte-exact; a `raw_header` that
