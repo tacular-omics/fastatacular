@@ -14,6 +14,7 @@ It understands UniProt-style description keys (`OS=`, `OX=`, `GN=`, `PE=`, `SV=`
 
 - **Zero dependencies** — pure Python, nothing else to install.
 - **Two ways to read** — `read_fasta` for the whole file at once, `FastaReader` to stream entries lazily without loading everything into memory.
+- **Compressed input** — `.gz`, `.bz2` and `.xz` files are read directly (detected from the file's magic bytes).
 - **UniProt headers parsed for you** — accession, organism, gene name, protein existence, and sequence version come back as typed fields, not a string you have to split yourself.
 - **Round-trip safe** — entries produced by `read_fasta` write back out byte-for-byte compatible headers.
 - **Actionable parse errors** — `FastaParseError` reports the offending line number and surrounding context.
@@ -52,6 +53,17 @@ with FastaReader("proteins.fasta") as reader:
     for entry in reader:
         process(entry)
 ```
+
+**Compressed files** are read transparently: gzip, bzip2 and xz, detected from the magic
+bytes (or the `.gz`/`.bz2`/`.xz` suffix):
+
+```python
+entries = read_fasta("uniprot_sprot.fasta.gz")
+```
+
+A PEFF file also reads as plain FASTA: its `#` file header lines are skipped and each
+entry keeps its identifier, sequence and raw description. Use
+[pefftacular](https://github.com/tacular-omics/pefftacular) to parse the PEFF annotations.
 
 ## Data model
 
@@ -142,6 +154,9 @@ except FastaParseError as e:
     print(e.line)     # offending line number
     print(e.context)  # surrounding line content
 ```
+
+Input that is not UTF-8, or a corrupt compressed file, also raises `FastaParseError`
+(chained to the underlying `UnicodeDecodeError` or `OSError`).
 
 Write errors raise `FastaWriteError`, whose `index` names the bad entry. Every entry is
 validated before anything is written, so a failed `write_fasta` leaves no partial file.

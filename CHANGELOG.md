@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Compressed input: `read_fasta` and `FastaReader` read gzip, bzip2 and xz files given
+  as paths, detected from the magic bytes (else the `.gz`/`.bz2`/`.xz` suffix).
+- PEFF files read as plain FASTA: `#` lines before the first `>` header (the PEFF file
+  header) are skipped instead of raising "Sequence data appears before any '>' header".
+
+### Performance
+
+- Reading a path is about 1.3-1.5x faster (human reference proteome, 63k entries): whole
+  records are split out of 1 MiB chunks instead of handling each line in Python, and
+  `KEY=value` pairs are found from each `=` instead of with a lazy regex. Output is
+  byte-identical on a 15-file UniProt/NCBI corpus.
+
+### Fixed
+
+- Input that is not valid UTF-8 raises `FastaParseError` (chained to the
+  `UnicodeDecodeError`) instead of a bare `UnicodeDecodeError`. A corrupt or truncated
+  compressed file raises `FastaParseError` too.
+
 ## [1.0.0] (2026-09-23)
 
 First stable release: the public API is now stable and follows semantic versioning.

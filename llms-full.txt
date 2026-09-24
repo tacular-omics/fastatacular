@@ -177,6 +177,12 @@ With a real file, pass the path (str or pathlib.Path):
     entries = read_fasta("proteins.fasta")
     entries = read_fasta(Path("proteins.fasta"))
 
+Compressed files are read transparently (since 1.1): gzip, bzip2 and xz, detected from
+the file's magic bytes, else from the `.gz` / `.bz2` / `.xz` suffix. This applies to
+paths only; for a handle, open it yourself (`gzip.open(path, "rt")`).
+
+    entries = read_fasta("uniprot_sprot.fasta.gz")
+
 ### 5.2 Stream lazily
 
 FastaReader yields one entry at a time, so memory use does not grow with file size.
@@ -250,6 +256,9 @@ parse as int are kept as strings in `extra` rather than raising.
 
 - Blank lines are skipped anywhere.
 - Lines starting with `;` (legacy/NCBI comments) are skipped anywhere.
+- Lines starting with `#` before the first `>` header (a PEFF file header such as
+  `# PEFF 1.0`) are skipped, so a PEFF file reads as plain FASTA: identifier, sequence and
+  the raw `\Key=value` description. Use pefftacular to parse the PEFF annotations.
 - Windows line endings (`\r\n`) are handled.
 - All whitespace (including internal spaces and tabs) is removed from each sequence
   line, then lines are joined. Residue letters are not upper-cased or validated; `*` and `-` are
@@ -397,6 +406,9 @@ first.
     error at line 3
 
 A missing file raises the usual FileNotFoundError / OSError, not FastaParseError.
+Input that is not UTF-8, and a corrupt or truncated compressed file, raise
+FastaParseError ("Cannot read the input after line N: ...") chained to the original
+UnicodeDecodeError / OSError / EOFError.
 
 ### 7.2 FastaWriteError
 
@@ -491,8 +503,8 @@ Gzipped input: open it yourself in text mode and pass the handle.
     key dicts by `identifier`/`accession`, not by the entry.
 11. Entries with an empty sequence cannot be read (FastaParseError) or written
     (FastaWriteError).
-12. Encoding is fixed to UTF-8 for paths. For other encodings open the file yourself
-    and pass the handle.
+12. Encoding is fixed to UTF-8 for paths (plain or .gz/.bz2/.xz). For other encodings
+    open the file yourself and pass the handle.
 
 
 ## 10. Related packages

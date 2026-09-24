@@ -126,6 +126,13 @@ Exported from `fastatacular` (`__all__`):
 - `FastaReader` is single-pass: a second iteration continues where the first stopped (empty after a full pass).
 - `FastaReader` errors are raised lazily, at the bad entry during iteration, not on
   open. Calling `iter()` outside `with` raises `RuntimeError`.
+- **Two readers.** Paths go through `_iter_path_entries` (1 MiB `read()` chunks split at
+  `\n>`, whole records); text handles go through the line-by-line `_iter_entries`. They
+  must give identical results (`tests/test_fast_paths.py` checks this); change both
+  together. `_split_kv` must match `_KV_PATTERN` (same test file).
+- Paths may be gzip/bzip2/xz (magic bytes, else suffix). Decode errors and corrupt
+  compressed streams become `FastaParseError` chained to the original error.
+- `#` lines before the first header (PEFF file header) are skipped; later `#` lines are sequence data.
 - An entry with no sequence lines (including the last one in the file) raises
   `FastaParseError`; `;` comment lines and blank or whitespace-only lines are skipped anywhere; a leading UTF-8 BOM is ignored.
 - `just lint`/`just format` cover `src` only, but CI also checks `tests`.
