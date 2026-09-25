@@ -10,6 +10,8 @@ A small, dependency-free library for reading and writing [FASTA](https://en.wiki
 
 It understands UniProt-style description keys (`OS=`, `OX=`, `GN=`, `PE=`, `SV=`) and pipe-delimited identifiers (`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`) out of the box, so you get structured fields instead of a header string to parse yourself.
 
+**Web app:** the [FASTA Toolkit](https://tacular-omics.github.io/fastatacular/) makes decoys, checks decoy quality, cleans up, merges and converts FASTA files in your browser (nothing is uploaded). To browse entries, use the [FASTA Viewer](https://pgarrett-scripps.github.io/fastaviewer/).
+
 ## Highlights
 
 - **Zero dependencies** — pure Python, nothing else to install.
