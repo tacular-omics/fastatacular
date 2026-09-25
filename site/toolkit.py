@@ -44,6 +44,7 @@ STATE: dict = {
     "dropped": [],  # [(identifier, reason, detail)] from the last clean-up
     "decoy": None,  # {"targets", "decoys", "output", "params"}
     "model": None,  # trained MarkovModel
+    "qc_targets": None,  # (key, digested targets) reused while targets and digest settings are unchanged
 }
 
 
@@ -316,7 +317,7 @@ def peptide_mass(peptide: str) -> float | None:
     """Neutral monoisotopic mass; peptacular itself for residues outside the 20 standard."""
     _mass_table()
     try:
-        return _WATER + sum(_RESIDUE_MASS[aa] for aa in peptide)
+        return _WATER + sum(map(_RESIDUE_MASS.__getitem__, peptide))
     except KeyError:
         try:
             return float(pt.mass(peptide))
@@ -324,24 +325,69 @@ def peptide_mass(peptide: str) -> float | None:
             return None
 
 
+_FAST_OK = re.compile(r"[A-Z]+")
+
+
+def _enzyme_pattern(enzyme: str) -> re.Pattern[str] | None:
+    """The protease's cleavage regex from tacular; None means cleave everywhere (unspecific)."""
+    from tacular import PROTEASE_LOOKUP
+
+    info = PROTEASE_LOOKUP.get(enzyme)
+    if info is None:
+        raise ValueError(f"Unknown enzyme {enzyme!r}")
+    pattern = info.pattern
+    return None if pattern.pattern in ("()", "") else pattern
+
+
+def fast_digest(seq: str, pattern: re.Pattern[str] | None, missed: int, min_len: int, max_len: int) -> list[str]:
+    """Peptide strings for one sequence: the same set as ``pt.digest`` (checked for every enzyme by
+    scripts/site_smoke.py), without building a ProForma annotation and spans per protein."""
+    n = len(seq)
+    if pattern is None:  # unspecific: every substring in the length range (missed cleavages do not apply)
+        return [seq[a : a + ln] for a in range(n) for ln in range(max(min_len, 1), min(max_len, n - a) + 1)]
+    found = [m.start() for m in pattern.finditer(seq)]
+    sites = sorted({0, n, *found}) if found else [0, n]
+    out = []
+    k = len(sites)
+    for i in range(k - 1):
+        a = sites[i]
+        for j in range(i + 1, min(i + 2 + missed, k)):
+            length = sites[j] - a
+            if length > max_len:
+                break
+            if length >= min_len:
+                out.append(seq[a : sites[j]])
+    return out
+
+
 def digest_entries(
     entries: list[SequenceEntry], enzyme: str, missed: int, min_len: int, max_len: int, stage: str
-) -> tuple[Counter[str], int]:
-    """Digest every entry; return peptide counts (with multiplicity) and the number of failures."""
-    peptides: Counter[str] = Counter()
+) -> tuple[set[str], int, int]:
+    """Digest every entry; return (distinct peptides, total peptides with multiplicity, failures).
+
+    Plain upper-case sequences use ``fast_digest``; anything else goes through ``pt.digest``,
+    which parses ProForma and reports sequences it cannot read as failures."""
+    pattern = _enzyme_pattern(enzyme)
+    distinct: set[str] = set()
+    total = 0
     failed = 0
     n = len(entries)
     for i, e in enumerate(entries):
-        if i % 200 == 0:
+        if i % 500 == 0:
             progress(stage, i, n)
-        try:
-            peptides.update(
-                p for p, _ in pt.digest(e.sequence, enzyme, missed_cleavages=missed, min_len=min_len, max_len=max_len)
-            )
-        except Exception:  # noqa: BLE001 - a sequence peptacular cannot parse
-            failed += 1
+        seq = e.sequence
+        if _FAST_OK.fullmatch(seq):
+            peps = fast_digest(seq, pattern, missed, min_len, max_len)
+        else:
+            try:
+                peps = [p for p, _ in pt.digest(seq, enzyme, missed_cleavages=missed, min_len=min_len, max_len=max_len)]
+            except Exception:  # noqa: BLE001 - a sequence peptacular cannot parse
+                failed += 1
+                continue
+        total += len(peps)
+        distinct.update(peps)
     progress(stage, n, n, force=True)
-    return peptides, failed
+    return distinct, total, failed
 
 
 def enzymes() -> str:
@@ -394,10 +440,10 @@ def stats(opts_json: str) -> str:
     }
     progress("Counting residues", n, n, force=True)
     if o.get("digest"):
-        peps, failed = digest_entries(
+        peps, total, failed = digest_entries(
             entries, o["enzyme"], int(o["missed"]), int(o["min_len"]), int(o["max_len"]), "Digesting"
         )
-        out["peptides"] = {"total": sum(peps.values()), "distinct": len(peps), "failed": failed}
+        out["peptides"] = {"total": total, "distinct": len(peps), "failed": failed}
     return json.dumps(out)
 
 
@@ -515,39 +561,61 @@ def decoys(opts_json: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _masses(peps: set[str], stage: str) -> tuple[list[float], int]:
+    """Monoisotopic masses of ``peps``; the count of peptides without one (X, B, Z ...)."""
+    _mass_table()
+    residue, water = _RESIDUE_MASS.__getitem__, _WATER
+    out: list[float] = []
+    bad = 0
+    n = len(peps)
+    for i, p in enumerate(peps):
+        if i % 50000 == 0:
+            progress(stage, i, n)
+        try:
+            out.append(water + sum(map(residue, p)))
+        except KeyError:
+            m = peptide_mass(p)
+            if m is None:
+                bad += 1
+            else:
+                out.append(m)
+    return out, bad
+
+
+def _digest_side(entries: list[SequenceEntry], settings: tuple, stage: str) -> dict:
+    peps, total, failed = digest_entries(entries, *settings, stage)
+    masses, unmassed = _masses(peps, stage.replace("Digesting", "Masses of"))
+    return {"set": peps, "total": total, "failed": failed, "masses": masses, "unmassed": unmassed}
+
+
 def decoy_qc(opts_json: str) -> str:
     o = json.loads(opts_json)
     d = STATE["decoy"]
     if d is None:
         raise ValueError("Make decoys first")
     enzyme, missed, lo, hi = o["enzyme"], int(o["missed"]), int(o["min_len"]), int(o["max_len"])
+    settings = (enzyme, missed, lo, hi)
     t0 = time.perf_counter()
-    tpep, tfail = digest_entries(d["targets"], enzyme, missed, lo, hi, "Digesting targets")
-    dpep, dfail = digest_entries(d["decoys"], enzyme, missed, lo, hi, "Digesting decoys")
-    tset, dset = set(tpep), set(dpep)
+    # The target side only depends on the targets and the digest settings, so trying another
+    # decoy method re-digests only the decoys.
+    key = (hash(tuple(e.sequence for e in d["targets"])), len(d["targets"]), settings)
+    cached = STATE.get("qc_targets")
+    target_cached = cached is not None and cached[0] == key
+    if target_cached:
+        t = cached[1]
+    else:
+        t = _digest_side(d["targets"], settings, "Digesting targets")
+        t["il"] = {p.replace("I", "L") for p in t["set"]}
+        STATE["qc_targets"] = (key, t)
+    dd = _digest_side(d["decoys"], settings, "Digesting decoys")
+    tset, dset = t["set"], dd["set"]
     shared = tset & dset
-    il = str.maketrans("I", "L")
-    tset_il = {p.translate(il) for p in tset}
-    shared_il = sum(1 for p in dset if p.translate(il) in tset_il)
-
-    def masses(peps: set[str], stage: str) -> tuple[list[float], int]:
-        out, bad = [], 0
-        n = len(peps)
-        for i, p in enumerate(peps):
-            if i % 20000 == 0:
-                progress(stage, i, n)
-            m = peptide_mass(p)
-            if m is None:
-                bad += 1
-            else:
-                out.append(m)
-        return out, bad
-
-    tm, tbad = masses(tset, "Target masses")
-    dm, dbad = masses(dset, "Decoy masses")
-    both = tm + dm
-    mlo = min(both) if both else 0.0
-    mhi = max(both) if both else 1.0
+    tset_il = t["il"]
+    shared_il = sum(1 for p in dset if p.replace("I", "L") in tset_il)
+    tm, tbad, dm, dbad = t["masses"], t["unmassed"], dd["masses"], dd["unmassed"]
+    tpep_total, tfail, dpep_total, dfail = t["total"], t["failed"], dd["total"], dd["failed"]
+    mlo = min((min(x) for x in (tm, dm) if x), default=0.0)
+    mhi = max((max(x) for x in (tm, dm) if x), default=1.0)
     mlo, mhi = 100 * (mlo // 100), 100 * (mhi // 100 + 1)
     bins = max(1, min(60, int((mhi - mlo) / 100)))
     return json.dumps(
@@ -555,14 +623,14 @@ def decoy_qc(opts_json: str) -> str:
             "params": {"enzyme": enzyme, "missed": missed, "min_len": lo, "max_len": hi},
             "target": {
                 "proteins": len(d["targets"]),
-                "peptides": sum(tpep.values()),
+                "peptides": tpep_total,
                 "distinct": len(tset),
                 "failed": tfail,
                 "unmassed": tbad,
             },
             "decoy": {
                 "proteins": len(d["decoys"]),
-                "peptides": sum(dpep.values()),
+                "peptides": dpep_total,
                 "distinct": len(dset),
                 "failed": dfail,
                 "unmassed": dbad,
@@ -578,6 +646,7 @@ def decoy_qc(opts_json: str) -> str:
                 "decoy": _int_histogram([len(p) for p in dset], lo, hi),
             },
             "mass": {"target": _histogram(tm, bins, mlo, mhi), "decoy": _histogram(dm, bins, mlo, mhi)},
+            "target_cached": target_cached,
             "seconds": round(time.perf_counter() - t0, 2),
         }
     )
@@ -596,7 +665,8 @@ def _entries_for(which: str) -> list[SequenceEntry]:
     return STATE["decoy"]["output"]
 
 
-def _peff(entries: list[SequenceEntry], fallback_prefix: str) -> str:
+def _peff(entries: list[SequenceEntry], fallback_prefix: str, decoy_prefix: str | None = None) -> str:
+    """PEFF text; databases whose prefix starts with ``decoy_prefix`` or a common decoy prefix get Decoy=true."""
     from pefftacular import DatabaseHeader, FileHeader, PeffError, write_peff
     from pefftacular import SequenceEntry as PeffEntry
 
@@ -609,7 +679,8 @@ def _peff(entries: list[SequenceEntry], fallback_prefix: str) -> str:
             pe = PeffEntry.from_fasta(header, e.sequence, prefix=fallback_prefix)
         converted.append(pe)
     per_prefix = Counter(p.prefix for p in converted)
-    decoy_prefixes_ = [p for p in per_prefix if any(p.startswith(d) for d in COMMON_DECOY_PREFIXES)]
+    markers = (*COMMON_DECOY_PREFIXES, decoy_prefix) if decoy_prefix else COMMON_DECOY_PREFIXES
+    decoy_prefixes_ = [p for p in per_prefix if p.startswith(markers)]
     sources = tuple(f["name"] for f in STATE["files"]) or ("FASTA file",)
     header = FileHeader(
         peff_version="1.0",
@@ -666,7 +737,8 @@ def export(opts_json: str) -> bytes:
             w.writerows(to_records(entries))
             text = buf.getvalue()
         elif fmt == "peff":
-            text = _peff(entries, o.get("peff_prefix") or "gen")
+            decoy_prefix = STATE["decoy"]["params"]["prefix"] if which == "decoy" else None
+            text = _peff(entries, o.get("peff_prefix") or "gen", decoy_prefix)
         else:
             raise ValueError(f"Unknown format {fmt!r}")
     data = text.encode()

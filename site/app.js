@@ -39,7 +39,9 @@
     $("progressBar").style.width = pct + "%";
     $("progressText").textContent = `${stage}: ${done.toLocaleString()} / ${total.toLocaleString()}`;
   }
-  const state = { loaded: 0, entries: 0, decoys: false, model: false, dropped: 0, baseName: "database" };
+  const state = { loaded: 0, entries: 0, decoys: false, decoyConcat: true, model: false, dropped: 0, baseName: "database" };
+  // File name suffix for the decoy database, from how it was made (not the current form).
+  const decoySuffix = () => (state.decoyConcat ? "_target_decoy" : "_decoy");
 
   function refreshButtons() {
     const idle = toolkit.ready && !toolkit.busy;
@@ -279,6 +281,7 @@
     const o = decoyOpts();
     const r = await run(`Making ${o.method} decoys...`, "decoys", o, [], $("decoyResult"));
     state.decoys = true;
+    state.decoyConcat = r.params.concatenate;
     const ex = r.examples.map((e) => `<tr><td class="seq">${esc(e.header)}<br>T: ${esc(e.target)}<br>D: ${esc(e.decoy)}</td></tr>`).join("");
     $("decoyResult").innerHTML =
       tiles([["targets", r.targets.toLocaleString(), "decoyTargets"], ["decoys", r.decoys.toLocaleString(), "decoyCount"],
@@ -293,7 +296,7 @@
   })()));
   $("decoyDlBtn").addEventListener("click", () => quiet((async () => {
     const bytes = await run("Exporting...", "export", { which: "decoy", format: "fasta", line_width: num("xLineWidth") });
-    download(bytes, `${state.baseName}_${decoyOpts().concatenate ? "target_decoy" : "decoy"}.fasta`, "text/plain");
+    download(bytes, `${state.baseName}${decoySuffix()}.fasta`, "text/plain");
   })()));
 
   // ---------------------------------------------------------------- 5. QC
@@ -306,7 +309,7 @@
     out.innerHTML =
       tiles([["shared decoy peptides", pct(r.shared_fraction), "qcShared"], ["shared if I = L", pct(r.shared_il_fraction), "qcSharedIL"],
         ["distinct target peptides", r.target.distinct.toLocaleString(), "qcTarget"], ["distinct decoy peptides", r.decoy.distinct.toLocaleString(), "qcDecoy"],
-        ["decoy / target peptides", bal.toFixed(3), "qcBalance"], ["time", r.seconds + " s"]]) +
+        ["decoy / target peptides", bal.toFixed(3), "qcBalance"], ["time" + (r.target_cached ? " (target digest reused)" : ""), r.seconds + " s"]]) +
       `<p class="verdict ${sharedClass}">${r.shared.toLocaleString()} of ${r.decoy.distinct.toLocaleString()} distinct decoy peptides (${pct(r.shared_fraction)}) are also target peptides. Those can never be counted as decoy hits and bias the FDR estimate${sharedClass === "good" ? "; this is low" : ""}.</p>` +
       `<p class="verdict ${balClass}">The decoys give ${bal.toFixed(3)} times as many distinct peptides as the targets${balClass === "good" ? " (balanced)" : "; the FDR estimate assumes about 1"}.</p>` +
       (r.target.failed + r.decoy.failed ? `<p class="verdict warn">${r.target.failed} target and ${r.decoy.failed} decoy sequences could not be digested.</p>` : "") +
@@ -337,7 +340,7 @@
     const format = $("xFormat").value;
     const gzip = $("xGzip").checked;
     const bytes = await run("Exporting...", "export", { which, format, gzip, line_width: num("xLineWidth"), peff_prefix: $("xPeffPrefix").value.trim() }, [], $("exportResult"));
-    const name = `${state.baseName}${which === "decoy" ? "_target_decoy" : ""}.${format}${gzip ? ".gz" : ""}`;
+    const name = `${state.baseName}${which === "decoy" ? decoySuffix() : ""}.${format}${gzip ? ".gz" : ""}`;
     download(bytes, name, gzip ? "application/gzip" : "text/plain");
     $("exportResult").innerHTML = `<p id="exportDone">Saved <code>${esc(name)}</code> (${(bytes.length / 1e6).toFixed(2)} MB).</p>`;
   })()));

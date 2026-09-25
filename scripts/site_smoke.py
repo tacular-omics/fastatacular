@@ -138,6 +138,56 @@ def fasta_bytes_entries(data: bytes):
     return read_fasta(io.StringIO(data.decode()))
 
 
+# ----------------------------------------------------------------------------- CPython-only checks
+
+
+def check_digest_matches_peptacular() -> None:
+    """toolkit.fast_digest must give exactly pt.digest's peptides for every enzyme the UI offers."""
+    import peptacular as pt
+
+    print("digest equivalence (CPython)")
+    rng = random.Random(1)
+    seqs = [e.sequence for f in (EX1, EX2) for e in read_fasta(str(f))]
+    seqs += ["".join(rng.choices("ACDEFGHIKLMNPQRSTVWYKRPDE", k=rng.randint(1, 80))) for _ in range(300)]
+    seqs += ["K", "KP", "PK", "KKKK", "RPK", "D", "DD", "DAD", "E", "AAAA", "KPKPRP"]
+    seqs = [s for s in seqs if tk._FAST_OK.fullmatch(s)]  # others go through pt.digest itself
+    names = json.loads(tk.enzymes())
+    ok("trypsin" in names and "unspecific" in names and "no_enzyme" in names, f"{len(names)} enzymes offered")
+    cases = 0
+    for enzyme in names:
+        pattern = tk._enzyme_pattern(enzyme)
+        for missed in (0, 1, 2, 3):
+            for lo, hi in ((1, 1000), (7, 40), (1, 5), (6, 6)):
+                for seq in seqs:
+                    if enzyme == "unspecific" and len(seq) > 60:
+                        continue
+                    ref = sorted(p for p, _ in pt.digest(seq, enzyme, missed_cleavages=missed, min_len=lo, max_len=hi))
+                    got = sorted(tk.fast_digest(seq, pattern, missed, lo, hi))
+                    if ref != got:
+                        raise AssertionError(f"fast_digest != pt.digest: {enzyme} missed={missed} {lo}-{hi} {seq}")
+                    cases += 1
+    ok(
+        True,
+        f"fast_digest == pt.digest (same peptides, same multiplicity) for all {len(names)} enzymes, {cases:,} cases",
+    )
+
+
+def peff_blocks(text: str) -> dict[str, str]:
+    """PEFF database header blocks by prefix."""
+    return {b.split("# Prefix=")[1].split("\n")[0]: b for b in text.split("# //") if "# Prefix=" in b}
+
+
+def check_peff_decoy_flag() -> None:
+    """A custom decoy prefix still marks its PEFF database Decoy=true."""
+    print("PEFF decoy flag (CPython)")
+    reference_load([EX1])
+    o = decoy_opts({"method": "reverse"}, prefix="XYZ_")
+    tk.decoys(json.dumps(o))
+    text = tk.export(json.dumps({"which": "decoy", "format": "peff"})).decode()
+    blocks = peff_blocks(text)
+    ok("Decoy=true" in blocks["XYZ_sp"] and "Decoy=true" not in blocks["sp"], "PEFF: XYZ_sp is Decoy=true, sp is not")
+
+
 # ----------------------------------------------------------------------------- feature checks
 
 DIGEST = {"enzyme": "trypsin", "missed": 1, "min_len": 7, "max_len": 40}
@@ -309,7 +359,7 @@ def check_decoys_and_qc(page: Page) -> None:
     name, model_bytes = download(page, "#dlModel")
     ok(name.endswith("_markov.json.gz") and model_bytes[:2] == b"\x1f\x8b", "trained model downloads as .json.gz")
 
-    for case in DECOY_CASES:
+    for i, case in enumerate(DECOY_CASES):
         o = decoy_opts(case)
         label = case["method"] + (f" ({case['model']})" if "model" in case else "")
         tab(page, "decoys")
@@ -337,6 +387,7 @@ def check_decoys_and_qc(page: Page) -> None:
             f"{label}: QC matches python (shared {q['shared_fraction']:.4%}, balance {q['balance']:.3f}, "
             f"{q['target']['distinct']} target / {q['decoy']['distinct']} decoy peptides)",
         )
+        ok(q["target_cached"] == (i > 0), f"{label}: target digest {'reused' if i else 'computed'}")
         ok(page.locator("#qcResult svg").count() == 2, f"{label}: length and mass charts render")
         ok(tile(page, "qcShared") == f"{100 * q['shared_fraction']:.2f}%", f"{label}: shared tile shows the fraction")
 
@@ -392,6 +443,18 @@ def check_decoys_and_qc(page: Page) -> None:
         "keep_residues=KR keeps every K/R in place",
     )
     ok(all(e.sequence[0] == tref[e.identifier[4:]][0] for e in entries), "N-terminal residue kept")
+    ok(name.endswith("_decoy.fasta") and "target_decoy" not in name, f"decoy-only download is named {name}")
+    tab(page, "export")
+    page.check('input[name="xWhich"][value="decoy"]')
+    page.select_option("#xFormat", "peff")
+    page.set_checked("#xGzip", False)
+    name, data = download(page, "#exportBtn")
+    text = data.decode()
+    ok(name.endswith("_decoy.peff") and "target_decoy" not in name, f"decoy-only export is named {name}")
+    ok(
+        "Decoy=true" in peff_blocks(text)["XYZ_sp"],
+        "PEFF export marks the custom-prefix (XYZ_) database Decoy=true",
+    )
 
 
 def check_export(page: Page) -> None:
@@ -416,7 +479,7 @@ def check_export(page: Page) -> None:
     name, data = download(page, "#exportBtn")
     entries = fasta_bytes_entries(gzip.decompress(data))
     ok(
-        name.endswith(".fasta.gz")
+        name.endswith("_target_decoy.fasta.gz")
         and len(entries) == 102
         and sum(e.identifier.startswith("DECOY_") for e in entries) == 51,
         f"{name}: gz target+decoy, 51 decoys",
@@ -493,6 +556,14 @@ def timing(page: Page, work: Path, n: int, method: str = "pseudo_reverse") -> di
     s = time.perf_counter()
     q = click_and_wait(page, "#qcBtn", "qc")
     t["qc"] = time.perf_counter() - s
+    tab(page, "decoys")
+    set_decoy_form(page, dict(decoy_opts({"method": "shuffle"}), seed="1"))
+    click_and_wait(page, "#decoyBtn", "decoys")
+    tab(page, "qc")
+    s = time.perf_counter()
+    q2 = click_and_wait(page, "#qcBtn", "qc")
+    t["qc_other_method"] = time.perf_counter() - s
+    ok(q2["target_cached"], "QC after switching to shuffle reuses the target digest")
     tab(page, "export")
     page.check('input[name="xWhich"][value="decoy"]')
     page.select_option("#xFormat", "fasta")
@@ -510,6 +581,7 @@ def timing(page: Page, work: Path, n: int, method: str = "pseudo_reverse") -> di
             "target_distinct": q["target"]["distinct"],
             "decoy_distinct": q["decoy"]["distinct"],
             "shared_fraction": q["shared_fraction"],
+            "shuffle_shared_fraction": q2["shared_fraction"],
         },
     }
 
@@ -521,7 +593,18 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--entries", type=int, default=20_000, help="synthetic entries for the timing run (0 = skip)")
     ap.add_argument("--port", type=int, default=0)
+    ap.add_argument("--cpython-only", action="store_true", help="only the checks that need no browser")
     args = ap.parse_args()
+
+    try:
+        check_digest_matches_peptacular()
+        check_peff_decoy_flag()
+    except AssertionError as err:
+        print(f"\nFAIL: {err}")
+        return 1
+    if args.cpython_only:
+        print(f"\nPASS: {len(CHECKS)} checks")
+        return 0
 
     port = args.port or free_port()
     server = subprocess.Popen(
