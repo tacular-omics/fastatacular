@@ -18,7 +18,8 @@ FASTA): `read_*`, a lazy `*Reader` context manager, `write_*`, a `*ParseError` w
 
 ```bash
 just install          # uv sync
-just test             # uv run pytest tests
+just test             # uv run pytest tests (fast: 30 Hypothesis examples, ~15 s)
+just test-all         # HYPOTHESIS_PROFILE=ci, what CI runs (~30 s)
 just test-v           # pytest -v
 just test-file FILE   # pytest one file, verbose
 just cov              # pytest with term-missing coverage
@@ -35,7 +36,8 @@ just check-version    # python scripts/release_version.py check
 CI (`.github/workflows/ci.yml`) is stricter than `just lint`/`just format`: it runs
 `ruff check src tests`, `ruff format --check src tests`, `ty check src`,
 `scripts/release_version.py check`, then pytest on 3.12-3.14 (Linux) plus macOS and
-Windows, a lowest-direct-deps run, and a built-wheel import. Before pushing, run:
+Windows, a lowest-direct-deps run, and a built-wheel import. Test jobs set
+`HYPOTHESIS_PROFILE=ci` (100 examples; profiles in `tests/conftest.py`, `thorough` = 2000). Before pushing, run:
 
 ```bash
 uv run ruff check src tests && uv run ruff format --check src tests && uv run ty check src && uv run pytest tests

@@ -45,6 +45,8 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --locked --all-extras --all-groups
       - run: uv run pytest tests
+        env:
+          HYPOTHESIS_PROFILE: ci
 
   # Proves the declared lower bounds still work: installs the oldest allowed
   # version of every direct dependency.
@@ -57,6 +59,8 @@ jobs:
           python-version: "3.12"
       - run: uv sync --resolution lowest-direct --all-extras --all-groups
       - run: uv run pytest tests
+        env:
+          HYPOTHESIS_PROFILE: ci
 
   package:
     runs-on: ubuntu-latest
@@ -78,7 +82,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - run: uv sync --locked --all-extras --all-groups
-      - run: uv run pytest tests --cov=src/fastatacular --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+      - env:
+          HYPOTHESIS_PROFILE: ci
+        run: uv run pytest tests --cov=src/fastatacular --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
