@@ -31,7 +31,7 @@ CI runs these on every pull request. Run them before you push:
 uv run ruff check src tests
 uv run ruff format --check src tests
 uv run ty check src
-uv run pytest tests
+uv run pytest tests            # fast; CI uses HYPOTHESIS_PROFILE=ci for more examples
 python scripts/release_version.py check
 ```
 

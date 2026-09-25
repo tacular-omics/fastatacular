@@ -27,6 +27,10 @@ check:
 test:
     uv run pytest tests
 
+# Run tests as CI does (more Hypothesis examples, about 30 s)
+test-all:
+    HYPOTHESIS_PROFILE=ci uv run pytest tests
+
 # Run tests with verbose output
 test-v:
     uv run pytest tests -v
@@ -41,7 +45,7 @@ cov:
 
 # Run tests with coverage (XML for Codecov) + JUnit XML for test results
 test-cov:
-    uv run pytest tests --cov=src/fastatacular --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+    HYPOTHESIS_PROFILE=ci uv run pytest tests --cov=src/fastatacular --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
 # Remove cache and compiled files
 clean:

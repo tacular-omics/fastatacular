@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import io
+import os
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,12 @@ from hypothesis import strategies as st
 
 from fastatacular import FastaParseError, FastaReader, read_fasta
 from fastatacular import _parser as parser
+
+
+def _examples(n: int) -> int:
+    """``n`` examples under the ``ci``/``thorough`` profiles, the profile's count in the fast default run."""
+    count = settings.default.max_examples
+    return count if os.environ.get("HYPOTHESIS_PROFILE", "default") == "default" else max(n, count)
 
 
 def _reference_kv(text: str) -> tuple[int | None, list[tuple[str, str]]]:
@@ -30,7 +37,7 @@ _kv_text = st.lists(_kv_alphabet, max_size=40).map("".join) | st.text(max_size=6
 
 
 @given(_kv_text)
-@settings(max_examples=2000)
+@settings(max_examples=_examples(2000))
 def test_split_kv_matches_reference_regex(text: str) -> None:
     assert parser._split_kv(text) == _reference_kv(text)
 
@@ -76,7 +83,7 @@ def _outcome(fn):  # type: ignore[no-untyped-def]
     st.booleans(),
     st.integers(1, 9),
 )
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=400)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=_examples(400))
 def test_path_reader_matches_line_reader(
     tmp_path: Path, lines: list[str], trailing_newline: bool, bom: bool, chunk: int
 ) -> None:
