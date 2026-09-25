@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] (2026-09-24)
+
 ### Added
 
 - `FastaIndex(path, *, key="identifier")`: random access to an uncompressed FASTA file

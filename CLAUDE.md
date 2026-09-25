@@ -112,7 +112,7 @@ Exported from `fastatacular` (`__all__`):
   `_writer.py`; `ty check src` must pass. Ruff rules E, W, F, I, B, UP; line length 120.
 - Errors: parsing raises `FastaParseError` with `line=` and `context=`; writing raises
   `FastaWriteError`. Non-integer `OX`/`PE`/`SV` values do not raise, they fall into
-  `extra`. No logging and no warnings anywhere in the package.
+  `extra`. No warnings; the only logging is `FastaIndex(duplicates="first")`.
 - Private modules are underscore-prefixed; add new public names to `__init__.__all__`.
 - Tests: plain pytest functions in `tests/test_<area>.py`, `tmp_path` for files,
   `io.StringIO` for in-memory input.
