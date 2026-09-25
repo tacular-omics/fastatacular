@@ -1,0 +1,66 @@
+/* FASTA Toolkit: site-specific rules. Base styles and tokens live in tacular-site.css. */
+
+/* Target/decoy series colours for the charts (colour-blind safe blue/orange pair). */
+:root { --target: #1f5f99; --decoy: #c0580f; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --target: #7fb3e6; --decoy: #f0a060; }
+}
+:root[data-theme="dark"] { --target: #7fb3e6; --decoy: #f0a060; }
+
+/* Status line stays visible while long steps run further down the page. */
+#runtime {
+  position: sticky; top: 0; z-index: 5; background: var(--bg);
+  padding: var(--space-2) 0; margin: 0 0 var(--space-2); border-bottom: 1px solid var(--border);
+}
+#runtime[data-state="ready"] #progressText:empty { display: none; }
+#progressText { font-variant-numeric: tabular-nums; }
+
+.help-block { color: var(--text-muted); font-size: var(--fs-small); max-width: 90ch; }
+.panel.stack > h2 { margin-bottom: 0; }
+.stack-sm > * + * { margin-top: var(--space-2); }
+
+/* Groups of fieldsets side by side. */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: var(--space-3); }
+.form-grid fieldset > * + * { margin-top: var(--space-3); }
+.form-grid .field input[type="text"], .form-grid .field select { width: 100%; }
+.checks.stacked { flex-direction: column; align-items: flex-start; }
+.check { white-space: normal; }
+.row .field input[type="text"] { width: 16rem; }
+
+/* File chooser: a label styled as a button around a hidden input. */
+.filebtn { position: relative; }
+.filebtn input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.filebtn:has(input:disabled) { opacity: 0.5; cursor: not-allowed; }
+.drop {
+  border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: var(--space-4);
+  text-align: center; color: var(--text-muted); font-size: var(--fs-small);
+}
+.drop.over { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+.digest-settings { background: var(--surface); }
+.digest-settings input[type="number"] { width: 6rem; }
+
+.result:empty { display: none; }
+.result h3 { margin: 0; }
+.error { white-space: pre-wrap; }
+.seq-block {
+  font-family: var(--font-mono); font-size: var(--fs-xsmall); overflow-wrap: anywhere;
+  background: var(--surface-2); border-radius: var(--radius); padding: var(--space-2) var(--space-3);
+}
+table.data td.seq { white-space: normal; overflow-wrap: anywhere; min-width: 16rem; font-size: var(--fs-xsmall); }
+
+/* Charts (charts.js): inline SVG. */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--space-4); }
+.chart { min-width: 0; }
+.chart h4 { margin: 0 0 var(--space-1); }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .axis text { fill: var(--text-muted); font-size: 11px; font-family: var(--font-sans); }
+.chart .axis line { stroke: var(--border); }
+.chart details { margin-top: var(--space-2); }
+.legend { display: flex; gap: var(--space-4); font-size: var(--fs-small); color: var(--text-muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: var(--space-1); }
+.tooltip {
+  position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius); padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-small); font-variant-numeric: tabular-nums;
+}

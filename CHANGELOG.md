@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- FASTA Toolkit web app (`site/`, deployed to https://tacular-omics.github.io/fastatacular/ by `.github/workflows/pages.yml`): decoys with every method, decoy QC with peptacular, clean-up and merge, stats, and FASTA/CSV/PEFF export, all in the browser with Pyodide. `scripts/site_smoke.py` tests it headless. Not part of the Python package.
+
 ### Changed
 
 - The source distribution now contains only the source, tests and the README, changelog, citation and license files: no paper, docs, lockfile or repository tooling.
