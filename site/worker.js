@@ -32,6 +32,7 @@ import json, importlib.metadata as md, sys
 json.dumps({p: md.version(p) for p in ("fastatacular", "peptacular", "tacular", "pefftacular")} | {"python": sys.version.split()[0]})
 `),
   );
+  versions.pyodide = pyodide.version;
   return { versions, enzymes: JSON.parse(tk.enzymes()) };
 }
 

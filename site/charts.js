@@ -58,8 +58,12 @@
     const d = document.createElement("details");
     d.innerHTML = "<summary>Show table</summary>";
     const wrap = document.createElement("div");
-    wrap.className = "scroll";
+    wrap.className = "details-body";
+    const scroll = document.createElement("div");
+    scroll.className = "table-wrap";
+    wrap.appendChild(scroll);
     const tbl = document.createElement("table");
+    tbl.className = "data";
     tbl.innerHTML = "<thead><tr>" + headers.map((h, i) => `<th class="${i ? "num" : ""}">${h}</th>`).join("") + "</tr></thead>";
     const tb = document.createElement("tbody");
     for (const r of rows) {
@@ -73,7 +77,7 @@
       tb.appendChild(tr);
     }
     tbl.appendChild(tb);
-    wrap.appendChild(tbl);
+    scroll.appendChild(tbl);
     d.appendChild(wrap);
     box.appendChild(d);
   }
@@ -92,7 +96,7 @@
       const g = el("g", {}, svg);
       el("rect", { x: x, y: M.t, width: slot, height: H - M.t - M.b, fill: "transparent" }, g);
       if (v > 0) {
-        el("rect", { x: x + gap / 2, y: y(v), width: Math.max(1, slot - gap), height: h, rx: Math.min(4, (slot - gap) / 2), fill: color }, g);
+        el("rect", { x: x + gap / 2, y: y(v), width: Math.max(1, slot - gap), height: h, fill: color }, g);
       }
       g.addEventListener("mousemove", (ev) => showTip(ev, `<b>${labels[i]}</b><br>${valueFmt(v)}`));
       g.addEventListener("mouseleave", hideTip);
@@ -114,7 +118,7 @@
       const d = s.values.map((v, i) => `${i ? "L" : "M"}${px(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
       el("path", { d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
     }
-    const cross = el("line", { y1: M.t, y2: H - M.b, stroke: "var(--muted)", "stroke-width": 1, visibility: "hidden" }, svg);
+    const cross = el("line", { y1: M.t, y2: H - M.b, stroke: "var(--text-muted)", "stroke-width": 1, visibility: "hidden" }, svg);
     const dots = series.map((s) => el("circle", { r: 4, fill: s.color, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, svg));
     const hit = el("rect", { x: M.l, y: M.t, width: W - M.l - M.r, height: H - M.t - M.b, fill: "transparent" }, svg);
     hit.addEventListener("mousemove", (ev) => {

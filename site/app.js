@@ -1,12 +1,10 @@
 // UI thread: forms, rendering and downloads. All Python runs in worker.js.
 (function () {
   const $ = (id) => document.getElementById(id);
-  const { barChart, lineChart, fmt } = window.Charts;
-  const EXAMPLES = {
-    loadExample1: ["examples/human_ecoli_mix.fasta"],
-    loadExample2: ["examples/contaminants_with_decoys.fasta"],
-    loadBothExamples: ["examples/human_ecoli_mix.fasta", "examples/contaminants_with_decoys.fasta"],
-  };
+  const { barChart, lineChart } = window.Charts;
+  const EX1 = "examples/human_ecoli_mix.fasta";
+  const EX2 = "examples/contaminants_with_decoys.fasta";
+  const EXAMPLES = { loadExample1: [EX1], loadExample2: [EX2], loadBothExamples: [EX1, EX2] };
   // Test hook: the last result of every command (scripts/site_smoke.py reads it).
   const toolkit = (window.toolkit = { ready: false, busy: false, results: {}, errors: [] });
 
@@ -23,7 +21,10 @@
     pending.delete(m.id);
     m.ok ? p.resolve(m.result) : p.reject(Object.assign(new Error(m.error), { detail: m.detail }));
   };
-  worker.onerror = (ev) => setStatus("Worker failed: " + (ev.message || ev));
+  worker.onerror = (ev) => {
+    setStatus("Could not start the Python worker: " + (ev.message || ev) + ". Reload the page to try again.");
+    setState("error");
+  };
   function call(cmd, args, transfer = []) {
     const id = nextId++;
     return new Promise((resolve, reject) => {
@@ -32,11 +33,11 @@
     });
   }
 
-  // ---------------------------------------------------------------- status
+  // ---------------------------------------------------------------- status line
+  const setState = (s) => ($("runtime").dataset.state = s);
   function setStatus(text) { $("status").textContent = text; }
   function setProgress(stage, done, total) {
-    const pct = total ? Math.round((100 * done) / total) : 0;
-    $("progressBar").style.width = pct + "%";
+    $("progressBar").value = total ? Math.round((100 * done) / total) : 0;
     $("progressText").textContent = `${stage}: ${done.toLocaleString()} / ${total.toLocaleString()}`;
   }
   const state = { loaded: 0, entries: 0, decoys: false, decoyConcat: true, model: false, dropped: 0, baseName: "database" };
@@ -47,6 +48,7 @@
     const idle = toolkit.ready && !toolkit.busy;
     const has = idle && state.entries > 0;
     for (const id of ["loadExample1", "loadExample2", "loadBothExamples"]) $(id).disabled = !idle;
+    document.querySelectorAll(".load-example").forEach((b) => (b.disabled = !idle));
     $("clearBtn").disabled = !idle || state.loaded === 0;
     $("fileInput").disabled = !idle;
     for (const id of ["statsBtn", "statsPepBtn", "decoyBtn", "trainBtn"]) $(id).disabled = !has;
@@ -58,34 +60,35 @@
     $("dlModel").disabled = !idle || !state.model;
     const which = document.querySelector('input[name="xWhich"]:checked').value;
     $("exportBtn").disabled = !has || (which === "decoy" && !state.decoys);
+    document.querySelectorAll(".needs-entries").forEach((e) => (e.hidden = state.loaded > 0));
+    document.querySelectorAll(".needs-decoys").forEach((e) => (e.hidden = state.decoys));
   }
 
   async function run(label, cmd, args, transfer, target) {
     toolkit.busy = true;
-    document.body.classList.add("busy");
+    setState("loading");
+    if (target) target.setAttribute("aria-busy", "true");
     refreshButtons();
     setStatus(label);
-    $("progressBar").style.width = "0";
+    $("progressBar").value = 0;
     $("progressText").textContent = "";
     const t0 = performance.now();
     try {
       const result = await call(cmd, args, transfer);
       toolkit.results[cmd] = result;
       const secs = ((performance.now() - t0) / 1000).toFixed(1);
-      setStatus(`Ready. ${label.replace(/\.+$/, "")} took ${secs} s.`);
-      $("progressBar").style.width = "100%";
+      setStatus(`Ready. ${label.replace(/\.+$|…$/, "")} took ${secs} s.`);
       return result;
     } catch (err) {
       toolkit.errors.push({ cmd, message: err.message });
-      setStatus("Ready (last step failed).");
-      if (target) {
-        target.innerHTML = `<p class="error"></p>`;
-        target.querySelector(".error").textContent = err.message;
-      }
+      setStatus("Ready. The last step failed; the message is shown below it.");
+      if (target) target.innerHTML = alert("error", "Could not finish.", esc(err.message), "error");
       throw err;
     } finally {
       toolkit.busy = false;
-      document.body.classList.remove("busy");
+      setState("ready");
+      $("progressText").textContent = "";
+      if (target) target.removeAttribute("aria-busy");
       refreshButtons();
     }
   }
@@ -93,7 +96,22 @@
 
   // ---------------------------------------------------------------- helpers
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  const tiles = (items) => `<div class="tiles">${items.map(([k, v, id]) => `<div class="tile"${id ? ` id="${id}"` : ""}><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("")}</div>`;
+  const n = (x) => x.toLocaleString();
+  // Key/value results: [label, value, optional element id].
+  const stats = (items) =>
+    `<dl class="stats">${items.map(([k, v, id]) => `<div${id ? ` id="${id}"` : ""}><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>`;
+  // kind: success | warning | error; html is already escaped.
+  const alert = (kind, lead, html, extraClass = "", id = "") =>
+    `<p class="alert alert-${kind}${extraClass ? " " + extraClass : ""}"${id ? ` id="${id}"` : ""}${kind === "error" ? ' role="alert"' : ""}><strong>${lead}</strong> ${html}</p>`;
+  const VERDICT = { good: ["success", "OK."], warn: ["warning", "Check."], bad: ["error", "Problem."] };
+  const verdict = (cls, html, id) => alert(VERDICT[cls][0], VERDICT[cls][1], html, "", id);
+  // headers: [text, cls] with cls 1 (= "num"), "seq" or none; rows: arrays of already-escaped cell HTML.
+  function table(headers, rows, id, extra = "auto") {
+    const cls = headers.map(([, c]) => (c === 1 ? ' class="num"' : c ? ` class="${c}"` : ""));
+    const th = headers.map(([h], i) => `<th${cls[i] === ' class="num"' ? cls[i] : ""}>${h}</th>`).join("");
+    const body = rows.map((r) => `<tr>${r.map((c, i) => `<td${cls[i]}>${c}</td>`).join("")}</tr>`).join("");
+    return `<div class="table-wrap ${extra}"><table class="data"${id ? ` id="${id}"` : ""}><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
   const pct = (x, d = 2) => (100 * x).toFixed(d) + "%";
   const num = (id) => { const v = $(id).value.trim(); return v === "" ? 0 : parseInt(v, 10); };
   function download(bytes, name, type = "application/octet-stream") {
@@ -115,17 +133,25 @@
   }
 
   // ---------------------------------------------------------------- tabs
+  const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
   function showTab(name) {
-    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
-    document.querySelectorAll(".panel").forEach((p) => (p.hidden = p.dataset.panel !== name));
+    tabs.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+    document.querySelectorAll('[role="tabpanel"]').forEach((p) => (p.hidden = p.dataset.panel !== name));
     const ds = $("digestSettings");
     if (name === "stats" || name === "qc") {
-      const panel = document.querySelector(`.panel[data-panel="${name}"]`);
-      panel.insertBefore(ds, panel.querySelector(":scope > .row"));
+      const panel = document.querySelector(`[data-panel="${name}"] > .panel`);
+      panel.insertBefore(ds, panel.querySelector(":scope > .actions"));
       ds.hidden = false;
     } else ds.hidden = true;
   }
-  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+  tabs.forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+  document.querySelector(".tabs").addEventListener("keydown", (e) => {
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0 || (e.key !== "ArrowRight" && e.key !== "ArrowLeft")) return;
+    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+    next.focus();
+    showTab(next.dataset.tab);
+  });
   showTab("input");
 
   // ---------------------------------------------------------------- 1. input
@@ -133,12 +159,12 @@
     state.loaded = s.loaded;
     state.entries = s.entries;
     state.decoys = false;
-    const files = s.files.map((f) => `<tr><td>${esc(f.name)}</td><td class="num">${f.entries.toLocaleString()}</td><td class="num">${(f.bytes / 1e6).toFixed(2)} MB</td><td class="num">${f.seconds} s</td></tr>`).join("");
-    $("loadSummary").innerHTML =
-      tiles([["entries", s.entries.toLocaleString(), "loadEntries"], ["residues", s.residues.toLocaleString()], ["files", s.files.length]]) +
-      (s.files.length ? `<table><thead><tr><th>file</th><th class="num">entries</th><th class="num">size</th><th class="num">parse time</th></tr></thead><tbody>${files}</tbody></table>` : "") +
-      (Object.keys(s.decoys_detected).length ? `<p class="verdict warn">Existing decoys found (${prefixTable(s.decoys_detected)}). The Decoys step leaves them out.</p>` : "") +
-      (s.preview.length ? `<p class="muted">First headers:</p><div class="seq">${s.preview.map(esc).join("<br>")}</div>` : "");
+    const files = s.files.map((f) => [esc(f.name), n(f.entries), (f.bytes / 1e6).toFixed(2), f.seconds]);
+    $("loadSummary").innerHTML = !s.loaded ? "" :
+      stats([["Entries", n(s.entries), "loadEntries"], ["Residues", n(s.residues)], ["Files", s.files.length]]) +
+      (s.files.length ? table([["File"], ["Entries", 1], ["Size (MB)", 1], ["Parse time (s)", 1]], files) : "") +
+      (Object.keys(s.decoys_detected).length ? verdict("warn", `Existing decoys found (${prefixTable(s.decoys_detected)}). The Decoys step leaves them out.`) : "") +
+      (s.preview.length ? `<div><h3 class="label">First headers</h3><div class="seq-block">${s.preview.map(esc).join("<br>")}</div></div>` : "");
     $("cleanResult").innerHTML = "";
     $("decoyResult").innerHTML = "";
     $("qcResult").innerHTML = "";
@@ -150,9 +176,14 @@
     const payload = [];
     for (const f of files) payload.push({ name: f.name, buffer: f.buffer || (await f.arrayBuffer()) });
     const replace = !$("appendFiles").checked;
-    const s = await run("Reading " + files.map((f) => f.name).join(", ") + "...", "load", { files: payload, replace }, payload.map((p) => p.buffer), $("loadSummary"));
+    const s = await run("Reading " + files.map((f) => f.name).join(", ") + "…", "load", { files: payload, replace }, payload.map((p) => p.buffer), $("loadSummary"));
     renderSummary(s);
     refreshButtons();
+  }
+  async function loadExamples(urls) {
+    const files = [];
+    for (const u of urls) files.push({ name: u.split("/").pop(), buffer: await (await fetch(u)).arrayBuffer() });
+    await loadFiles(files);
   }
   $("fileInput").addEventListener("change", (e) => { quiet(loadFiles([...e.target.files])); e.target.value = ""; });
   const dz = $("dropZone");
@@ -160,14 +191,18 @@
   dz.addEventListener("dragleave", () => dz.classList.remove("over"));
   dz.addEventListener("drop", (e) => { e.preventDefault(); dz.classList.remove("over"); if (toolkit.ready && !toolkit.busy) quiet(loadFiles([...e.dataTransfer.files])); });
   for (const [id, urls] of Object.entries(EXAMPLES)) {
-    $(id).addEventListener("click", async () => {
-      const files = [];
-      for (const u of urls) files.push({ name: u.split("/").pop(), buffer: await (await fetch(u)).arrayBuffer() });
+    $(id).addEventListener("click", () => {
       if (id === "loadBothExamples") $("appendFiles").checked = false;
-      quiet(loadFiles(files));
+      quiet(loadExamples(urls));
     });
   }
-  $("clearBtn").addEventListener("click", async () => { renderSummary(await run("Clearing...", "clear")); $("loadSummary").innerHTML = ""; state.model = false; refreshButtons(); });
+  // "Load example" in the empty state of the other tabs: both examples, merged.
+  document.querySelectorAll(".load-example").forEach((b) => b.addEventListener("click", () => quiet((async () => {
+    $("appendFiles").checked = false;
+    await loadExamples([EX1, EX2]);
+    if (b.dataset.then === "decoys") await makeDecoys();
+  })())));
+  $("clearBtn").addEventListener("click", async () => { renderSummary(await run("Clearing…", "clear")); state.model = false; refreshButtons(); });
 
   // ---------------------------------------------------------------- 2. clean-up
   function cleanOpts() {
@@ -180,60 +215,63 @@
     };
   }
   $("cleanBtn").addEventListener("click", () => quiet((async () => {
-    const r = await run("Cleaning up...", "cleanup", cleanOpts(), [], $("cleanResult"));
+    const r = await run("Cleaning up…", "cleanup", cleanOpts(), [], $("cleanResult"));
     state.entries = r.after; state.dropped = r.dropped; state.decoys = false;
-    const reasons = Object.entries(r.reasons).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td></tr>`).join("");
-    const rows = r.rows.map((x) => `<tr><td>${esc(x[0])}</td><td>${esc(x[1])}</td><td>${esc(x[2])}</td></tr>`).join("");
+    const reasons = Object.entries(r.reasons).map(([k, v]) => [esc(k), n(v)]);
+    const rows = r.rows.map((x) => [esc(x[0]), esc(x[1]), esc(x[2])]);
     $("cleanResult").innerHTML =
-      tiles([["before", r.before.toLocaleString()], ["kept", r.after.toLocaleString(), "cleanKept"], ["dropped", r.dropped.toLocaleString(), "cleanDropped"]]) +
-      (r.dropped ? `<table><thead><tr><th>reason</th><th class="num">entries</th></tr></thead><tbody>${reasons}</tbody></table>
-        <p class="muted">Dropped entries${r.dropped > r.rows.length ? ` (first ${r.rows.length}; download the CSV for all)` : ""}:</p>
-        <div class="scroll"><table id="droppedTable"><thead><tr><th>identifier</th><th>reason</th><th>detail</th></tr></thead><tbody>${rows}</tbody></table></div>` : "<p>Nothing dropped.</p>");
+      stats([["Before", n(r.before)], ["Kept", n(r.after), "cleanKept"], ["Dropped", n(r.dropped), "cleanDropped"]]) +
+      (r.dropped
+        ? table([["Reason"], ["Entries", 1]], reasons) +
+          `<h3 class="label">Dropped entries${r.dropped > r.rows.length ? ` (first ${r.rows.length}; download the CSV for all)` : ""}</h3>` +
+          table([["Identifier"], ["Reason"], ["Detail"]], rows, "droppedTable", "")
+        : `<p class="empty">Nothing dropped: every entry passed the filters.</p>`);
     refreshButtons();
   })()));
   $("cleanResetBtn").addEventListener("click", () => quiet((async () => {
-    const s = await run("Undoing clean-up...", "resetCleanup");
+    const s = await run("Undoing clean-up…", "resetCleanup");
     state.entries = s.entries; state.dropped = 0; state.decoys = false;
-    $("cleanResult").innerHTML = `<p>Using all ${s.entries.toLocaleString()} loaded entries.</p>`;
+    $("cleanResult").innerHTML = `<p class="alert">Using all ${n(s.entries)} loaded entries.</p>`;
     refreshButtons();
   })()));
   $("dlDropped").addEventListener("click", () => quiet((async () => {
-    download(await run("Exporting...", "export", { which: "dropped" }), `${state.baseName}_dropped.csv`, "text/csv");
+    download(await run("Exporting…", "export", { which: "dropped" }), `${state.baseName}_dropped.csv`, "text/csv");
   })()));
 
   // ---------------------------------------------------------------- 3. stats
   async function doStats(digest) {
-    const r = await run(digest ? "Computing stats and digesting..." : "Computing stats...", "stats", { digest, ...digestOpts() }, [], $("statsResult"));
+    const r = await run(digest ? "Computing stats and digesting…" : "Computing stats…", "stats", { digest, ...digestOpts() }, [], $("statsResult"));
     const out = $("statsResult");
     const L = r.length;
-    const items = [["entries", r.entries.toLocaleString(), "statEntries"], ["residues", r.residues.toLocaleString()],
-      ["length min / median / max", `${L.min} / ${L.median} / ${L.max}`], ["mean length", L.mean],
-      ["organisms", r.organism_count], ["duplicate IDs", r.duplicate_ids], ["duplicate sequences", r.duplicate_sequences],
-      ["entries with non-standard residues", r.entries_with_nonstandard]];
+    const items = [["Entries", n(r.entries), "statEntries"], ["Residues", n(r.residues)],
+      ["Length min / median / max (residues)", `${L.min} / ${L.median} / ${L.max}`], ["Mean length (residues)", L.mean],
+      ["Organisms", r.organism_count], ["Duplicate identifiers", r.duplicate_ids], ["Duplicate sequences", r.duplicate_sequences],
+      ["Entries with non-standard residues", r.entries_with_nonstandard]];
     if (r.peptides) {
       const d = digestOpts();
-      items.push([`peptides (${d.enzyme}, ${d.missed} missed, ${d.min_len}-${d.max_len} aa)`, r.peptides.total.toLocaleString(), "statPeptides"]);
-      items.push(["distinct peptides", r.peptides.distinct.toLocaleString(), "statDistinct"]);
+      items.push([`Peptides (${d.enzyme}, ${d.missed} missed, ${d.min_len}–${d.max_len} residues)`, n(r.peptides.total), "statPeptides"]);
+      items.push(["Distinct peptides", n(r.peptides.distinct), "statDistinct"]);
     }
-    out.innerHTML = tiles(items) +
-      (Object.keys(r.decoys_detected).length ? `<p class="verdict warn">Contains decoy entries: ${prefixTable(r.decoys_detected)}.</p>` : "") +
-      (r.peptides && r.peptides.failed ? `<p class="verdict warn">${r.peptides.failed} sequences could not be digested.</p>` : "");
+    out.innerHTML = stats(items) +
+      (Object.keys(r.decoys_detected).length ? verdict("warn", `Contains decoy entries: ${prefixTable(r.decoys_detected)}.`) : "") +
+      (r.peptides && r.peptides.failed ? verdict("warn", `${r.peptides.failed} sequences could not be digested.`) : "");
     const charts = document.createElement("div");
     charts.className = "charts";
     out.appendChild(charts);
     const h = L.hist;
     barChart(charts, {
-      title: "Protein length", xTitle: "length (residues)", yTitle: "entries",
+      title: "Protein length", xTitle: "Length (residues)", yTitle: "Entries",
       labels: h.counts.map((_, i) => (i === h.counts.length - 1 && h.overflow ? `${Math.round(h.edges[i])}+` : `${Math.round(h.edges[i])}`)),
       values: h.counts,
     });
     barChart(charts, {
-      title: "Amino-acid composition", xTitle: "residue", yTitle: "% of residues", labelEvery: 1,
+      title: "Amino-acid composition", xTitle: "Residue", yTitle: "Share of residues (%)", labelEvery: 1,
       labels: r.composition.map((c) => c.aa), values: r.composition.map((c) => 100 * c.fraction), valueFmt: (v) => v.toFixed(2) + "%",
     });
-    if (r.other_residues.length) out.insertAdjacentHTML("beforeend", `<p class="muted">Other characters: ${r.other_residues.map((o) => `<code>${esc(o.aa)}</code> ${o.count}`).join(", ")}</p>`);
-    const orgs = r.organisms.map((o) => `<tr><td>${esc(o.name)}</td><td class="num">${o.count.toLocaleString()}</td><td class="num">${pct(o.count / r.entries, 1)}</td></tr>`).join("");
-    out.insertAdjacentHTML("beforeend", `<h4>Organisms${r.organism_count > 20 ? " (top 20)" : ""}</h4><table id="orgTable"><thead><tr><th>OS= (OX=)</th><th class="num">entries</th><th class="num">share</th></tr></thead><tbody>${orgs}</tbody></table>`);
+    if (r.other_residues.length) out.insertAdjacentHTML("beforeend", `<p class="help">Other characters: ${r.other_residues.map((o) => `<code>${esc(o.aa)}</code> ${o.count}`).join(", ")}</p>`);
+    const orgs = r.organisms.map((o) => [esc(o.name), n(o.count), pct(o.count / r.entries, 1)]);
+    out.insertAdjacentHTML("beforeend", `<div><h3>Organisms${r.organism_count > 20 ? " (top 20)" : ""}</h3>` +
+      table([["OS= (OX=)"], ["Entries", 1], ["Share of entries", 1]], orgs, "orgTable", "") + "</div>");
   }
   $("statsBtn").addEventListener("click", () => quiet(doStats(false)));
   $("statsPepBtn").addEventListener("click", () => quiet(doStats(true)));
@@ -253,7 +291,7 @@
     refreshButtons();
   }
   $("trainBtn").addEventListener("click", () => quiet((async () => {
-    const r = await run("Training Markov model...", "trainModel", { order: num("mOrder") }, [], $("modelInfo"));
+    const r = await run("Training Markov model…", "trainModel", { order: num("mOrder") }, [], $("modelInfo"));
     $("mModel").value = "trained";
     modelInfo(r, "Trained");
   })()));
@@ -261,13 +299,13 @@
     const f = e.target.files[0];
     if (!f) return;
     const buffer = await f.arrayBuffer();
-    const r = await run("Loading model...", "loadModel", { file: { name: f.name, buffer } }, [buffer], $("modelInfo"));
+    const r = await run("Loading model…", "loadModel", { file: { name: f.name, buffer } }, [buffer], $("modelInfo"));
     $("mModel").value = "uploaded";
     modelInfo(r, "Uploaded");
     e.target.value = "";
   })()));
   $("dlModel").addEventListener("click", () => quiet((async () => {
-    download(await run("Exporting...", "export", { which: "model" }), `${state.baseName}_markov.json.gz`, "application/gzip");
+    download(await run("Exporting…", "export", { which: "model" }), `${state.baseName}_markov.json.gz`, "application/gzip");
   })()));
   function decoyOpts() {
     return {
@@ -277,57 +315,60 @@
       concatenate: document.querySelector('input[name="mOutput"]:checked').value === "concat",
     };
   }
-  $("decoyBtn").addEventListener("click", () => quiet((async () => {
+  async function makeDecoys() {
     const o = decoyOpts();
-    const r = await run(`Making ${o.method} decoys...`, "decoys", o, [], $("decoyResult"));
+    const r = await run(`Making ${o.method} decoys…`, "decoys", o, [], $("decoyResult"));
     state.decoys = true;
     state.decoyConcat = r.params.concatenate;
-    const ex = r.examples.map((e) => `<tr><td class="seq">${esc(e.header)}<br>T: ${esc(e.target)}<br>D: ${esc(e.decoy)}</td></tr>`).join("");
+    const ex = r.examples.map((e) => [esc(e.header.split(/\s/)[0]), esc(e.target), esc(e.decoy)]);
     $("decoyResult").innerHTML =
-      tiles([["targets", r.targets.toLocaleString(), "decoyTargets"], ["decoys", r.decoys.toLocaleString(), "decoyCount"],
-        ["entries in output", r.output_entries.toLocaleString(), "decoyOutput"], ["decoy = target", r.identical_to_target],
-        ["composition L1", r.composition_l1], ["time", r.seconds + " s"]]) +
-      (r.existing_decoys_skipped ? `<p class="verdict warn" id="decoySkipped">Left out ${r.existing_decoys_skipped} existing decoy entries (${prefixTable(r.existing_prefixes)}); they are not in the output.</p>` : `<p class="verdict good">No existing decoys in the input.</p>`) +
-      (r.identical_to_target ? `<p class="verdict warn">${r.identical_to_target} decoys equal their target (every stretch between kept residues is too short to change).</p>` : "") +
-      `<p class="muted">First decoys (T = target, D = decoy, first 60 residues):</p><table><tbody>${ex}</tbody></table>
-       <p>Next: <a href="#" id="toQc">check the decoys in Decoy QC</a>.</p>`;
-    $("toQc").addEventListener("click", (e) => { e.preventDefault(); showTab("qc"); });
+      stats([["Targets", n(r.targets), "decoyTargets"], ["Decoys", n(r.decoys), "decoyCount"],
+        ["Entries in output", n(r.output_entries), "decoyOutput"], ["Decoy = target", r.identical_to_target],
+        ["Composition difference (L1, 0–2)", r.composition_l1], ["Time (s)", r.seconds]]) +
+      (r.existing_decoys_skipped
+        ? verdict("warn", `Left out ${r.existing_decoys_skipped} existing decoy entries (${prefixTable(r.existing_prefixes)}); they are not in the output.`, "decoySkipped")
+        : verdict("good", "No existing decoys in the input.")) +
+      (r.identical_to_target ? verdict("warn", `${r.identical_to_target} decoys equal their target (every stretch between kept residues is too short to change).`) : "") +
+      `<div><h3 class="label">First decoys (first 60 residues)</h3>` +
+      table([["Decoy identifier"], ["Target sequence", "seq"], ["Decoy sequence", "seq"]], ex) + "</div>" +
+      `<p>Next: <a href="#" id="toQc">check the decoys in Decoy QC</a>.</p>`;
+    $("toQc").addEventListener("click", (e) => { e.preventDefault(); showTab("qc"); $("tab-qc").focus(); });
     refreshButtons();
-  })()));
+  }
+  $("decoyBtn").addEventListener("click", () => quiet(makeDecoys()));
   $("decoyDlBtn").addEventListener("click", () => quiet((async () => {
-    const bytes = await run("Exporting...", "export", { which: "decoy", format: "fasta", line_width: num("xLineWidth") });
+    const bytes = await run("Exporting…", "export", { which: "decoy", format: "fasta", line_width: num("xLineWidth") });
     download(bytes, `${state.baseName}${decoySuffix()}.fasta`, "text/plain");
   })()));
 
   // ---------------------------------------------------------------- 5. QC
   $("qcBtn").addEventListener("click", () => quiet((async () => {
-    const r = await run("Digesting targets and decoys...", "qc", digestOpts(), [], $("qcResult"));
+    const r = await run("Digesting targets and decoys…", "qc", digestOpts(), [], $("qcResult"));
     const out = $("qcResult");
     const sharedClass = r.shared_fraction < 0.005 ? "good" : r.shared_fraction < 0.02 ? "warn" : "bad";
     const bal = r.balance;
     const balClass = Math.abs(bal - 1) <= 0.05 ? "good" : Math.abs(bal - 1) <= 0.15 ? "warn" : "bad";
+    const side = (name, s) => [name, n(s.proteins), n(s.peptides), n(s.distinct)];
     out.innerHTML =
-      tiles([["shared decoy peptides", pct(r.shared_fraction), "qcShared"], ["shared if I = L", pct(r.shared_il_fraction), "qcSharedIL"],
-        ["distinct target peptides", r.target.distinct.toLocaleString(), "qcTarget"], ["distinct decoy peptides", r.decoy.distinct.toLocaleString(), "qcDecoy"],
-        ["decoy / target peptides", bal.toFixed(3), "qcBalance"], ["time" + (r.target_cached ? " (target digest reused)" : ""), r.seconds + " s"]]) +
-      `<p class="verdict ${sharedClass}">${r.shared.toLocaleString()} of ${r.decoy.distinct.toLocaleString()} distinct decoy peptides (${pct(r.shared_fraction)}) are also target peptides. Those can never be counted as decoy hits and bias the FDR estimate${sharedClass === "good" ? "; this is low" : ""}.</p>` +
-      `<p class="verdict ${balClass}">The decoys give ${bal.toFixed(3)} times as many distinct peptides as the targets${balClass === "good" ? " (balanced)" : "; the FDR estimate assumes about 1"}.</p>` +
-      (r.target.failed + r.decoy.failed ? `<p class="verdict warn">${r.target.failed} target and ${r.decoy.failed} decoy sequences could not be digested.</p>` : "") +
-      `<table><thead><tr><th></th><th class="num">proteins</th><th class="num">peptides</th><th class="num">distinct</th></tr></thead><tbody>
-        <tr><td>target</td><td class="num">${r.target.proteins.toLocaleString()}</td><td class="num">${r.target.peptides.toLocaleString()}</td><td class="num">${r.target.distinct.toLocaleString()}</td></tr>
-        <tr><td>decoy</td><td class="num">${r.decoy.proteins.toLocaleString()}</td><td class="num">${r.decoy.peptides.toLocaleString()}</td><td class="num">${r.decoy.distinct.toLocaleString()}</td></tr></tbody></table>` +
-      (r.shared_examples.length ? `<details><summary>Shared peptides (first ${r.shared_examples.length})</summary><div class="seq">${r.shared_examples.map(esc).join(" ")}</div></details>` : "");
+      stats([["Shared decoy peptides", pct(r.shared_fraction), "qcShared"], ["Shared if I = L", pct(r.shared_il_fraction), "qcSharedIL"],
+        ["Distinct target peptides", n(r.target.distinct), "qcTarget"], ["Distinct decoy peptides", n(r.decoy.distinct), "qcDecoy"],
+        ["Decoy / target peptides", bal.toFixed(3), "qcBalance"], ["Time (s)" + (r.target_cached ? ", target digest reused" : ""), r.seconds]]) +
+      verdict(sharedClass, `${n(r.shared)} of ${n(r.decoy.distinct)} distinct decoy peptides (${pct(r.shared_fraction)}) are also target peptides. Those can never be counted as decoy hits and bias the FDR estimate${sharedClass === "good" ? "; this is low" : ""}.`) +
+      verdict(balClass, `The decoys give ${bal.toFixed(3)} times as many distinct peptides as the targets${balClass === "good" ? " (balanced)" : "; the FDR estimate assumes about 1"}.`) +
+      (r.target.failed + r.decoy.failed ? verdict("warn", `${r.target.failed} target and ${r.decoy.failed} decoy sequences could not be digested.`) : "") +
+      table([["Database"], ["Proteins", 1], ["Peptides", 1], ["Distinct peptides", 1]], [side("Target", r.target), side("Decoy", r.decoy)]) +
+      (r.shared_examples.length ? `<details><summary>Shared peptides (first ${r.shared_examples.length})</summary><div class="details-body"><div class="seq-block">${r.shared_examples.map(esc).join(" ")}</div></div></details>` : "");
     const charts = document.createElement("div");
     charts.className = "charts";
     out.appendChild(charts);
-    const T = { name: "target", color: "var(--target)" }, D = { name: "decoy", color: "var(--decoy)" };
+    const T = { name: "Target", color: "var(--target)" }, D = { name: "Decoy", color: "var(--decoy)" };
     lineChart(charts, {
-      title: "Distinct peptide length", xTitle: "length", yTitle: "peptides", x: r.length.target.x,
+      title: "Distinct peptide length", xTitle: "Peptide length (residues)", yTitle: "Distinct peptides", x: r.length.target.x,
       series: [{ ...T, values: r.length.target.counts }, { ...D, values: r.length.decoy.counts }],
     });
     const m = r.mass.target;
     lineChart(charts, {
-      title: "Distinct peptide mass (monoisotopic)", xTitle: "Da", yTitle: "peptides",
+      title: "Distinct peptide mass", xTitle: "Monoisotopic mass (Da)", yTitle: "Distinct peptides",
       x: (m.edges.length ? m.edges.slice(0, -1) : []).map((e) => Math.round(e)),
       series: [{ ...T, values: m.counts }, { ...D, values: r.mass.decoy.counts }],
     });
@@ -339,10 +380,10 @@
     const which = document.querySelector('input[name="xWhich"]:checked').value;
     const format = $("xFormat").value;
     const gzip = $("xGzip").checked;
-    const bytes = await run("Exporting...", "export", { which, format, gzip, line_width: num("xLineWidth"), peff_prefix: $("xPeffPrefix").value.trim() }, [], $("exportResult"));
+    const bytes = await run("Exporting…", "export", { which, format, gzip, line_width: num("xLineWidth"), peff_prefix: $("xPeffPrefix").value.trim() }, [], $("exportResult"));
     const name = `${state.baseName}${which === "decoy" ? decoySuffix() : ""}.${format}${gzip ? ".gz" : ""}`;
     download(bytes, name, gzip ? "application/gzip" : "text/plain");
-    $("exportResult").innerHTML = `<p id="exportDone">Saved <code>${esc(name)}</code> (${(bytes.length / 1e6).toFixed(2)} MB).</p>`;
+    $("exportResult").innerHTML = alert("success", "Saved", `<code>${esc(name)}</code> (${(bytes.length / 1e6).toFixed(2)} MB).`, "", "exportDone");
   })()));
 
   // ---------------------------------------------------------------- boot
@@ -354,9 +395,11 @@
       $("versions").textContent = Object.entries(info.versions).map(([k, v]) => `${k} ${v}`).join(" · ");
       toolkit.ready = true;
       toolkit.versions = info.versions;
-      setStatus("Ready. Load a FASTA file or an example.");
+      setState("ready");
+      setStatus(`Ready: fastatacular ${info.versions.fastatacular} running in your browser. Load a FASTA file or an example.`);
     } catch (err) {
-      setStatus("Could not start Python: " + err.message);
+      setState("error");
+      setStatus("Could not start Python: " + err.message + ". Check the network connection and reload the page.");
       toolkit.errors.push({ cmd: "init", message: err.message });
     }
     refreshButtons();

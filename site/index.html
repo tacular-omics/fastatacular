@@ -4,230 +4,447 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>FASTA Toolkit</title>
-  <meta name="description" content="Make decoys, check decoy quality, clean up, merge and convert protein FASTA files for search engines. Runs in your browser; files are never uploaded.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%232a78d6%22/%3E%3Ctext x=%228%22 y=%2212%22 font-size=%2211%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22sans-serif%22%3EF%3C/text%3E%3C/svg%3E">
+  <meta name="description" content="Clean up, merge and convert protein FASTA files, make target-decoy databases and check decoy quality. Runs in the browser with fastatacular, peptacular and pefftacular.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%231f5f99%22/%3E%3Ctext x=%228%22 y=%2212%22 font-size=%2211%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22sans-serif%22%3EF%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="tacular-site.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header class="top">
-  <div class="wrap">
-    <h1>FASTA Toolkit</h1>
-    <p class="lede">Prepare protein FASTA files for search engines: clean up and merge, make target-decoy databases,
-      check decoy quality, convert. Built on <a href="https://github.com/tacular-omics/fastatacular">fastatacular</a>,
-      <a href="https://github.com/tacular-omics/peptacular">peptacular</a> and
-      <a href="https://github.com/tacular-omics/pefftacular">pefftacular</a>.</p>
-    <p class="privacy"><strong>Private by design:</strong> everything runs in your browser (Python via Pyodide).
-      Your files are never uploaded. To browse and search entries, use the
-      <a href="https://pgarrett-scripps.github.io/fastaviewer/">FASTA Viewer</a>.</p>
+<header class="site-header">
+  <div class="container">
+    <div>
+      <h1 class="site-title"><a href="./">FASTA Toolkit</a></h1>
+      <p class="site-desc">Clean up and merge protein FASTA files, make target-decoy databases, check decoy quality
+        and convert to CSV or PEFF for search engines. Runs in your browser with the fastatacular, peptacular and
+        pefftacular Python packages; files are never uploaded. To browse and search entries, use the
+        <a href="https://pgarrett-scripps.github.io/fastaviewer/">FASTA Viewer</a>.</p>
+    </div>
+    <nav class="site-links" aria-label="Project links">
+      <a href="https://github.com/tacular-omics/fastatacular#readme">Docs</a>
+      <a href="https://github.com/tacular-omics/fastatacular">GitHub</a>
+      <a href="#cite">Cite</a>
+    </nav>
   </div>
 </header>
 
-<div class="statusbar" role="status" aria-live="polite">
-  <div class="wrap statusrow">
-    <span id="status">Starting...</span>
-    <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
-    <span id="progressText" class="muted"></span>
-  </div>
-</div>
+<main>
+  <div class="container">
+    <p id="runtime" class="status" role="status" aria-live="polite" data-state="loading">
+      <span class="spinner" aria-hidden="true"></span>
+      <span id="status">Loading Python runtime (first visit about 10–30 s)…</span>
+      <progress id="progressBar" max="100" value="0" aria-label="Progress"></progress>
+      <span id="progressText"></span>
+    </p>
 
-<main class="wrap">
-  <nav class="tabs" role="tablist">
-    <button role="tab" data-tab="input" aria-selected="true">1. Input</button>
-    <button role="tab" data-tab="clean">2. Clean up</button>
-    <button role="tab" data-tab="stats">3. Stats</button>
-    <button role="tab" data-tab="decoys">4. Decoys</button>
-    <button role="tab" data-tab="qc">5. Decoy QC</button>
-    <button role="tab" data-tab="export">6. Export</button>
-  </nav>
+    <nav class="tabs" role="tablist" aria-label="Steps">
+      <button type="button" class="tab" role="tab" id="tab-input" aria-controls="panel-input" data-tab="input" aria-selected="true">1. Input</button>
+      <button type="button" class="tab" role="tab" id="tab-clean" aria-controls="panel-clean" data-tab="clean" aria-selected="false">2. Clean up</button>
+      <button type="button" class="tab" role="tab" id="tab-stats" aria-controls="panel-stats" data-tab="stats" aria-selected="false">3. Stats</button>
+      <button type="button" class="tab" role="tab" id="tab-decoys" aria-controls="panel-decoys" data-tab="decoys" aria-selected="false">4. Decoys</button>
+      <button type="button" class="tab" role="tab" id="tab-qc" aria-controls="panel-qc" data-tab="qc" aria-selected="false">5. Decoy QC</button>
+      <button type="button" class="tab" role="tab" id="tab-export" aria-controls="panel-export" data-tab="export" aria-selected="false">6. Export</button>
+    </nav>
 
-  <!-- 1. Input -->
-  <section class="panel" data-panel="input">
-    <h2>Load FASTA files</h2>
-    <p class="muted">Plain, <code>.gz</code>, <code>.bz2</code> or <code>.xz</code> (detected from the file contents).
-      Pick several files to merge them. A 20,000-entry proteome takes a few seconds.</p>
-    <div class="row">
-      <label class="filebtn">Choose files<input id="fileInput" type="file" multiple accept=".fasta,.fa,.faa,.fas,.txt,.gz,.bz2,.xz,.peff"></label>
-      <label class="check"><input id="appendFiles" type="checkbox"> Add to the files already loaded</label>
-    </div>
-    <div id="dropZone" class="drop">or drop files here</div>
-    <div class="row">
-      <span class="muted">Examples:</span>
-      <button id="loadExample1" class="secondary" disabled>Human + E. coli mix (50 entries, planted problems)</button>
-      <button id="loadExample2" class="secondary" disabled>Contaminants with old decoys (13 entries)</button>
-      <button id="loadBothExamples" class="secondary" disabled>Both (merge)</button>
-      <button id="clearBtn" class="secondary" disabled>Clear</button>
-    </div>
-    <div id="loadSummary" class="result"></div>
-  </section>
-
-  <!-- 2. Clean up -->
-  <section class="panel" data-panel="clean" hidden>
-    <h2>Clean up</h2>
-    <p class="muted">Filters run on the loaded entries in this order, then duplicates are removed (the first copy is kept).
-      Run again with other settings at any time; it always starts from the loaded files.</p>
-    <div class="grid">
-      <fieldset>
-        <legend>Header</legend>
-        <label>Regex on the header line <input id="cHeaderRegex" type="text" placeholder="e.g. PE=[12] or ^sp\|"></label>
-        <label>Mode <select id="cRegexMode"><option value="include">keep matching</option><option value="exclude">drop matching</option></select></label>
-        <label class="check"><input id="cRegexCase" type="checkbox"> Case-sensitive</label>
-      </fieldset>
-      <fieldset>
-        <legend>Organism (UniProt OS= / OX=)</legend>
-        <label>OS= contains <input id="cOrganism" type="text" placeholder="e.g. Homo sapiens"></label>
-        <label>OX= taxon IDs <input id="cTaxa" type="text" placeholder="e.g. 9606, 83333"></label>
-        <label>Mode <select id="cOrgMode"><option value="include">keep matching</option><option value="exclude">drop matching</option></select></label>
-      </fieldset>
-      <fieldset>
-        <legend>Length and residues</legend>
-        <label>Min length <input id="cMinLen" type="number" min="0" placeholder="none"></label>
-        <label>Max length <input id="cMaxLen" type="number" min="0" placeholder="none"></label>
-        <label class="check"><input id="cInvalid" type="checkbox"> Drop entries with residues outside</label>
-        <label>Allowed residues <input id="cAlphabet" type="text" value="ACDEFGHIKLMNPQRSTVWY"></label>
-        <label class="check"><input id="cAllowAmb" type="checkbox"> Also allow B, J, O, U, X, Z</label>
-      </fieldset>
-      <fieldset>
-        <legend>Duplicates</legend>
-        <label class="check"><input id="cDedupId" type="checkbox" checked> Remove duplicate identifiers</label>
-        <label class="check"><input id="cDedupSeq" type="checkbox" checked> Remove duplicate sequences</label>
-        <label class="check"><input id="cIL" type="checkbox"> Treat I and L as the same (mass-identical)</label>
-      </fieldset>
-    </div>
-    <div class="row">
-      <button id="cleanBtn" disabled>Apply clean-up</button>
-      <button id="cleanResetBtn" class="secondary" disabled>Undo (use loaded entries)</button>
-      <button id="dlDropped" class="secondary" disabled>Download dropped list (CSV)</button>
-    </div>
-    <div id="cleanResult" class="result"></div>
-  </section>
-
-  <!-- 3. Stats -->
-  <section class="panel" data-panel="stats" hidden>
-    <h2>Stats</h2>
-    <p class="muted">For the current entries (after clean-up, if you ran it).</p>
-    <div class="row">
-      <button id="statsBtn" disabled>Compute stats</button>
-      <button id="statsPepBtn" class="secondary" disabled>Stats + theoretical peptides</button>
-      <span class="muted digestnote"></span>
-    </div>
-    <div id="statsResult" class="result"></div>
-  </section>
-
-  <!-- 4. Decoys -->
-  <section class="panel" data-panel="decoys" hidden>
-    <h2>Decoys</h2>
-    <p class="muted">Entries that already carry a decoy prefix (<code>DECOY_</code>, <code>rev_</code>, <code>XXX_</code>, ...)
-      are left out and reported, so decoys are never made from decoys. Method details:
-      <a href="https://github.com/tacular-omics/fastatacular/blob/main/docs/decoys.md">docs/decoys.md</a>.</p>
-    <div class="grid">
-      <fieldset>
-        <legend>Method</legend>
-        <label>Method
-          <select id="mMethod">
-            <option value="pseudo_reverse">pseudo-reverse (keep K/R in place)</option>
-            <option value="reverse">reverse</option>
-            <option value="shuffle">shuffle</option>
-            <option value="debruijn">de Bruijn (repeat-preserving)</option>
-            <option value="markov">Markov chain</option>
-          </select>
-        </label>
-        <label class="only-debruijn">k (de Bruijn k-mer length) <input id="mK" type="number" min="1" max="6" value="2"></label>
-        <div class="only-markov">
-          <label>Markov model
-            <select id="mModel">
-              <option value="human">human (shipped)</option>
-              <option value="mouse">mouse (shipped)</option>
-              <option value="yeast">yeast (shipped)</option>
-              <option value="ecoli">E. coli (shipped)</option>
-              <option value="trained">trained on the input</option>
-              <option value="uploaded">uploaded model file</option>
-            </select>
-          </label>
-          <div class="row tight">
-            <label>Order <input id="mOrder" type="number" min="0" max="4" value="2"></label>
-            <button id="trainBtn" class="secondary" disabled>Train on input</button>
-            <button id="dlModel" class="secondary" disabled>Download model</button>
-          </div>
-          <label class="filebtn small">Upload a saved model (.json / .json.gz)<input id="modelFile" type="file" accept=".json,.gz"></label>
-          <div id="modelInfo" class="muted"></div>
+    <!-- 1. Input -->
+    <section class="tab-panel stack" role="tabpanel" id="panel-input" aria-labelledby="tab-input" data-panel="input">
+      <div class="panel stack">
+        <h2>Load FASTA files</h2>
+        <p class="help-block">Plain text or compressed with gzip, bzip2 or xz (detected from the file contents, not the name).
+          Choose several files to merge them. A 20,000-entry proteome takes a few seconds.</p>
+        <div class="cluster">
+          <label class="btn btn-primary filebtn">Choose files<input id="fileInput" type="file" multiple disabled accept=".fasta,.fa,.faa,.fas,.txt,.gz,.bz2,.xz,.peff"></label>
+          <label class="check"><input id="appendFiles" type="checkbox"> Add to the files already loaded</label>
         </div>
-      </fieldset>
-      <fieldset>
-        <legend>Options</legend>
-        <label>Prefix <input id="mPrefix" type="text" value="DECOY_"></label>
-        <label>Seed (blank = random) <input id="mSeed" type="text" value="1"></label>
-        <label>Keep residues in place <input id="mKeepRes" type="text" placeholder="method default (KR for pseudo-reverse)"></label>
-        <label class="check"><input id="mKeepMet" type="checkbox" checked> Keep the N-terminal residue (initiator Met)</label>
-        <label>Keep C-terminal residues <input id="mKeepCterm" type="number" min="0" value="0"></label>
-      </fieldset>
-      <fieldset>
-        <legend>Output</legend>
-        <label class="check"><input type="radio" name="mOutput" value="concat" checked> Targets + decoys (concatenated)</label>
-        <label class="check"><input type="radio" name="mOutput" value="decoys"> Decoys only</label>
-      </fieldset>
-    </div>
-    <div class="row">
-      <button id="decoyBtn" disabled>Make decoys</button>
-      <button id="decoyDlBtn" class="secondary" disabled>Download FASTA</button>
-    </div>
-    <div id="decoyResult" class="result"></div>
-  </section>
+        <div id="dropZone" class="drop">Or drop files here</div>
+        <div class="cluster">
+          <span class="label">Examples</span>
+          <button type="button" id="loadExample1" class="btn btn-small" disabled>Human + E. coli mix (50 entries, planted problems)</button>
+          <button type="button" id="loadExample2" class="btn btn-small" disabled>Contaminants with old decoys (13 entries)</button>
+          <button type="button" id="loadBothExamples" class="btn btn-small" disabled>Load example (both, merged)</button>
+          <button type="button" id="clearBtn" class="btn btn-small" disabled>Clear</button>
+        </div>
+      </div>
+      <div id="loadSummary" class="result stack"></div>
+      <details class="about">
+        <summary>About this tool / Methods</summary>
+        <div class="details-body">
+          <p>Files are read with <code>fastatacular.read_fasta</code>, which also parses UniProt header fields
+            (<code>OS=</code>, <code>OX=</code>, <code>GN=</code>, <code>PE=</code>, <code>SV=</code>) and pipe-delimited
+            identifiers such as <code>sp|P12345|NAME_HUMAN</code>. Compression is detected from the first bytes of each file.</p>
+          <p>Entries whose identifier starts with a common decoy prefix (<code>DECOY_</code>, <code>decoy_</code>,
+            <code>REV_</code>, <code>rev_</code>, <code>XXX_</code>, <code>SHUFFLED_</code>, <code>RANDOM_</code> and
+            their lower-case forms) are counted as existing decoys.</p>
+        </div>
+      </details>
+    </section>
 
-  <!-- 5. Decoy QC -->
-  <section class="panel" data-panel="qc" hidden>
-    <h2>Decoy QC</h2>
-    <p class="muted">Digests the targets and the decoys from step 4 with peptacular and compares the distinct peptides.
-      Good decoys share almost no peptides with the targets and match their number, length and mass distribution.</p>
-    <div class="row">
-      <button id="qcBtn" disabled>Run decoy QC</button>
-      <span class="muted digestnote"></span>
-    </div>
-    <div id="qcResult" class="result"></div>
-  </section>
+    <!-- 2. Clean up -->
+    <section class="tab-panel stack" role="tabpanel" id="panel-clean" aria-labelledby="tab-clean" data-panel="clean" hidden>
+      <p class="empty needs-entries">No entries loaded. Load files on the Input tab, or
+        <button type="button" class="btn-link load-example">load the example databases</button>.</p>
+      <div class="panel stack">
+        <h2>Clean up</h2>
+        <p class="help-block">Filters run on the loaded entries in the order shown, then duplicates are removed (the first
+          copy is kept). Running it again always starts from the loaded files.</p>
+        <div class="form-grid">
+          <fieldset>
+            <legend>Header</legend>
+            <div class="field">
+              <label for="cHeaderRegex">Regular expression on the header line</label>
+              <input id="cHeaderRegex" type="text" class="mono" placeholder="e.g. PE=[12] or ^sp\|" aria-describedby="cHeaderRegex-help">
+              <p id="cHeaderRegex-help" class="help">Python <code>re</code> syntax, searched anywhere in the line; case-insensitive unless set under Advanced options.</p>
+            </div>
+            <div class="field">
+              <label for="cRegexMode">Matching entries</label>
+              <select id="cRegexMode"><option value="include">keep</option><option value="exclude">drop</option></select>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Organism (UniProt OS= / OX=)</legend>
+            <div class="field">
+              <label for="cOrganism">OS= contains</label>
+              <input id="cOrganism" type="text" placeholder="e.g. Homo sapiens">
+            </div>
+            <div class="field">
+              <label for="cTaxa">OX= taxon IDs</label>
+              <input id="cTaxa" type="text" placeholder="e.g. 9606, 83333" aria-describedby="cTaxa-help">
+              <p id="cTaxa-help" class="help">Comma-separated NCBI taxonomy IDs. An entry matches if either field matches.</p>
+            </div>
+            <div class="field">
+              <label for="cOrgMode">Matching entries</label>
+              <select id="cOrgMode"><option value="include">keep</option><option value="exclude">drop</option></select>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Length and residues</legend>
+            <div class="row">
+              <div class="field">
+                <label for="cMinLen">Min length (residues)</label>
+                <input id="cMinLen" type="number" min="0" placeholder="none">
+              </div>
+              <div class="field">
+                <label for="cMaxLen">Max length (residues)</label>
+                <input id="cMaxLen" type="number" min="0" placeholder="none">
+              </div>
+            </div>
+            <label class="check"><input id="cInvalid" type="checkbox"> Drop entries with residues outside the allowed set</label>
+          </fieldset>
+          <fieldset>
+            <legend>Duplicates</legend>
+            <div class="checks stacked">
+              <label class="check"><input id="cDedupId" type="checkbox" checked> Remove duplicate identifiers</label>
+              <label class="check"><input id="cDedupSeq" type="checkbox" checked> Remove duplicate sequences</label>
+              <label class="check"><input id="cIL" type="checkbox"> Treat I and L as the same (same mass)</label>
+            </div>
+          </fieldset>
+        </div>
+        <details class="advanced" id="cleanAdvanced">
+          <summary>Advanced options</summary>
+          <div class="details-body row">
+            <div class="field">
+              <label for="cAlphabet">Allowed residues</label>
+              <input id="cAlphabet" type="text" class="mono" value="ACDEFGHIKLMNPQRSTVWY" aria-describedby="cAlphabet-help">
+              <p id="cAlphabet-help" class="help">Used by "Drop entries with residues outside the allowed set".</p>
+            </div>
+            <div class="checks stacked">
+              <label class="check"><input id="cAllowAmb" type="checkbox"> Also allow B, J, O, U, X, Z</label>
+              <label class="check"><input id="cRegexCase" type="checkbox"> Header regular expression is case-sensitive</label>
+            </div>
+          </div>
+        </details>
+        <div class="cluster actions">
+          <button type="button" id="cleanBtn" class="btn btn-primary" disabled>Apply clean-up</button>
+          <button type="button" id="cleanResetBtn" class="btn" disabled>Undo (use loaded entries)</button>
+          <button type="button" id="dlDropped" class="btn" disabled>Download dropped entries (CSV)</button>
+        </div>
+      </div>
+      <div id="cleanResult" class="result stack"></div>
+      <details class="about">
+        <summary>About this tool / Methods</summary>
+        <div class="details-body">
+          <p>Each entry is tested in this order and dropped at the first filter it fails: header regular expression,
+            organism, minimum length, maximum length, allowed residues. The organism filter compares the text after
+            <code>OS=</code> (case-insensitive substring) and the number after <code>OX=</code>.</p>
+          <p>Duplicates are then removed, keeping the first copy: by identifier, then by sequence. With "Treat I and L
+            as the same", sequences that differ only by I/L count as duplicates, because they have the same mass and
+            give the same peptide masses.</p>
+        </div>
+      </details>
+    </section>
 
-  <!-- 6. Export -->
-  <section class="panel" data-panel="export" hidden>
-    <h2>Export</h2>
-    <div class="grid">
-      <fieldset>
-        <legend>What</legend>
-        <label class="check"><input type="radio" name="xWhich" value="working" checked> Current entries (after clean-up)</label>
-        <label class="check"><input type="radio" name="xWhich" value="decoy"> Decoy database from step 4</label>
-      </fieldset>
-      <fieldset>
-        <legend>Format</legend>
-        <label>Format
-          <select id="xFormat">
-            <option value="fasta">FASTA</option>
-            <option value="csv">CSV (one row per entry, fastatacular.to_records)</option>
-            <option value="peff">PEFF 1.0 (pefftacular)</option>
-          </select>
-        </label>
-        <label>FASTA line width (0 = one line) <input id="xLineWidth" type="number" min="0" value="60"></label>
-        <label>PEFF prefix for IDs without a <code>db|</code> part <input id="xPeffPrefix" type="text" value="gen"></label>
-        <label class="check"><input id="xGzip" type="checkbox"> gzip (.gz)</label>
-      </fieldset>
-    </div>
-    <div class="row"><button id="exportBtn" disabled>Download</button></div>
-    <div id="exportResult" class="result"></div>
-  </section>
+    <!-- 3. Stats -->
+    <section class="tab-panel stack" role="tabpanel" id="panel-stats" aria-labelledby="tab-stats" data-panel="stats" hidden>
+      <p class="empty needs-entries">No entries loaded. Load files on the Input tab, or
+        <button type="button" class="btn-link load-example">load the example databases</button>.</p>
+      <div class="panel stack">
+        <h2>Stats</h2>
+        <p class="help-block">For the current entries (after clean-up, if you ran it). The theoretical peptide count uses the digest settings below.</p>
+        <div class="cluster actions">
+          <button type="button" id="statsBtn" class="btn btn-primary" disabled>Compute stats</button>
+          <button type="button" id="statsPepBtn" class="btn" disabled>Compute stats and digest</button>
+        </div>
+      </div>
+      <div id="statsResult" class="result stack"></div>
+      <details class="about">
+        <summary>About this tool / Methods</summary>
+        <div class="details-body">
+          <p>Length is the number of residues per entry; composition counts the 20 standard residues over all entries,
+            and other characters are listed separately. Organisms come from the UniProt <code>OS=</code> and
+            <code>OX=</code> header fields.</p>
+          <p>"Compute stats and digest" cuts every sequence with the selected protease and counts peptides within
+            the length range. "Peptides" counts every peptide of every protein; "distinct peptides" counts each
+            sequence once. Protease rules are the cleavage regular expressions in tacular's protease table, the same
+            ones <code>peptacular.digest</code> uses.</p>
+        </div>
+      </details>
+    </section>
 
-  <!-- shared digest settings: app.js moves this into the Stats or QC panel -->
-  <section class="digest-settings" id="digestSettings">
-    <h3>Digest (peptacular)</h3>
-    <div class="row tight">
-      <label>Enzyme <select id="dEnzyme"></select></label>
-      <label>Missed cleavages <input id="dMissed" type="number" min="0" max="5" value="1"></label>
-      <label>Min length <input id="dMin" type="number" min="1" value="7"></label>
-      <label>Max length <input id="dMax" type="number" min="1" value="40"></label>
-    </div>
-  </section>
+    <!-- 4. Decoys -->
+    <section class="tab-panel stack" role="tabpanel" id="panel-decoys" aria-labelledby="tab-decoys" data-panel="decoys" hidden>
+      <p class="empty needs-entries">No entries loaded. Load files on the Input tab, or
+        <button type="button" class="btn-link load-example">load the example databases</button>.</p>
+      <div class="panel stack">
+        <h2>Decoys</h2>
+        <p class="help-block">Entries that already carry a decoy prefix are left out and reported, so decoys are never
+          made from decoys. Method details: <a href="https://github.com/tacular-omics/fastatacular/blob/main/docs/decoys.md">docs/decoys.md</a>.</p>
+        <div class="form-grid">
+          <fieldset>
+            <legend>Method</legend>
+            <div class="field">
+              <label for="mMethod">Method</label>
+              <select id="mMethod">
+                <option value="pseudo_reverse">pseudo-reverse (keep K/R in place)</option>
+                <option value="reverse">reverse</option>
+                <option value="shuffle">shuffle</option>
+                <option value="debruijn">de Bruijn (repeat-preserving)</option>
+                <option value="markov">Markov chain</option>
+              </select>
+            </div>
+            <div class="field only-debruijn">
+              <label for="mK">k (residues of context)</label>
+              <input id="mK" type="number" min="1" max="6" value="2" aria-describedby="mK-help">
+              <p id="mK-help" class="help">Each distinct (k+1)-mer gets one replacement residue. 2 is the published value.</p>
+            </div>
+            <div class="only-markov stack-sm">
+              <div class="field">
+                <label for="mModel">Markov model</label>
+                <select id="mModel">
+                  <option value="human">human (shipped)</option>
+                  <option value="mouse">mouse (shipped)</option>
+                  <option value="yeast">yeast (shipped)</option>
+                  <option value="ecoli">E. coli (shipped)</option>
+                  <option value="trained">trained on the input</option>
+                  <option value="uploaded">uploaded model file</option>
+                </select>
+              </div>
+              <div class="row">
+                <div class="field">
+                  <label for="mOrder">Order (residues)</label>
+                  <input id="mOrder" type="number" min="0" max="4" value="2">
+                </div>
+                <div class="cluster">
+                  <button type="button" id="trainBtn" class="btn btn-small" disabled>Train on input</button>
+                  <button type="button" id="dlModel" class="btn btn-small" disabled>Download model</button>
+                </div>
+              </div>
+              <label class="btn btn-small filebtn">Upload a saved model (.json or .json.gz)<input id="modelFile" type="file" accept=".json,.gz"></label>
+              <div id="modelInfo" class="help"></div>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Options</legend>
+            <div class="field">
+              <label for="mPrefix">Decoy identifier prefix</label>
+              <input id="mPrefix" type="text" class="mono" value="DECOY_">
+            </div>
+            <div class="field">
+              <label for="mSeed">Random seed</label>
+              <input id="mSeed" type="text" value="1" aria-describedby="mSeed-help">
+              <p id="mSeed-help" class="help">Blank gives different decoys each run. Reverse and pseudo-reverse ignore it.</p>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Output</legend>
+            <div class="checks stacked">
+              <label class="check"><input type="radio" name="mOutput" value="concat" checked> Targets + decoys (concatenated)</label>
+              <label class="check"><input type="radio" name="mOutput" value="decoys"> Decoys only</label>
+            </div>
+          </fieldset>
+        </div>
+        <details class="advanced" id="decoyAdvanced">
+          <summary>Advanced options</summary>
+          <div class="details-body row">
+            <div class="field">
+              <label for="mKeepRes">Residues kept in place</label>
+              <input id="mKeepRes" type="text" class="mono" placeholder="method default" aria-describedby="mKeepRes-help">
+              <p id="mKeepRes-help" class="help">Blank: KR for pseudo-reverse, none for the others. KR keeps every tryptic cleavage site.</p>
+            </div>
+            <div class="field">
+              <label for="mKeepCterm">C-terminal residues kept</label>
+              <input id="mKeepCterm" type="number" min="0" value="0">
+            </div>
+            <label class="check"><input id="mKeepMet" type="checkbox" checked> Keep the N-terminal residue (initiator Met)</label>
+          </div>
+        </details>
+        <div class="cluster actions">
+          <button type="button" id="decoyBtn" class="btn btn-primary" disabled>Make decoys</button>
+          <button type="button" id="decoyDlBtn" class="btn" disabled>Download FASTA</button>
+        </div>
+      </div>
+      <div id="decoyResult" class="result stack"></div>
+      <details class="about">
+        <summary>About this tool / Methods</summary>
+        <div class="details-body">
+          <p>Decoys are made with <code>fastatacular.make_decoys</code>. Each decoy keeps its target's header fields;
+            only the identifier gets the prefix.</p>
+          <ul>
+            <li><strong>reverse</strong>: the sequence reversed. <strong>pseudo-reverse</strong>: each stretch between
+              kept residues (K and R by default) reversed, so tryptic peptide lengths and masses match the targets.
+              Both are deterministic (Elias and Gygi 2007).</li>
+            <li><strong>shuffle</strong>: residues randomly permuted; redrawn up to 10 times if it gives back the target.</li>
+            <li><strong>de Bruijn</strong>: every distinct (k+1)-mer in the database gets one replacement residue, so
+              sequence repeated between targets is repeated between decoys (Moosa et al. 2020).</li>
+            <li><strong>Markov chain</strong>: residues sampled from a chain trained on a proteome, using the previous
+              <i>order</i> residues as context.</li>
+          </ul>
+          <p>"Decoy = target" counts decoys identical to their target. "Composition difference" is the sum over
+            residues of |target fraction − decoy fraction| (0 = identical composition, 2 = no residue in common).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- 5. Decoy QC -->
+    <section class="tab-panel stack" role="tabpanel" id="panel-qc" aria-labelledby="tab-qc" data-panel="qc" hidden>
+      <p class="empty needs-decoys">No decoys yet. Make them on the Decoys tab, or
+        <button type="button" class="btn-link load-example" data-then="decoys">load the example databases and make pseudo-reverse decoys</button>.</p>
+      <div class="panel stack">
+        <h2>Decoy QC</h2>
+        <p class="help-block">Digests the targets and the decoys from step 4 and compares their distinct peptides. Good
+          decoys share almost no peptides with the targets and match their number, length and mass distribution.</p>
+        <div class="cluster actions">
+          <button type="button" id="qcBtn" class="btn btn-primary" disabled>Run decoy QC</button>
+        </div>
+      </div>
+      <div id="qcResult" class="result stack"></div>
+      <details class="about">
+        <summary>About this tool / Methods</summary>
+        <div class="details-body">
+          <p>Targets and decoys are digested in silico with the selected protease, missed cleavages and length range.
+            T is the set of distinct target peptides and D the set of distinct decoy peptides.</p>
+          <ul>
+            <li><strong>Shared decoy peptides</strong> = |T ∩ D| / |D|: the fraction of distinct decoy peptides that
+              are also target peptides. A search engine reports those as target hits, so they cannot count as decoy hits.</li>
+            <li><strong>Shared if I = L</strong>: the same, after replacing I with L in both sets (isoleucine and leucine
+              have the same mass).</li>
+            <li><strong>Decoy / target peptides</strong> = |D| / |T|. Target-decoy FDR estimation assumes about 1.</li>
+          </ul>
+          <p>Masses are neutral monoisotopic peptide masses (residue masses plus water) from peptacular's residue
+            table. Changing only the decoys reuses the target digest.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- 6. Export -->
+    <section class="tab-panel stack" role="tabpanel" id="panel-export" aria-labelledby="tab-export" data-panel="export" hidden>
+      <p class="empty needs-entries">No entries loaded. Load files on the Input tab, or
+        <button type="button" class="btn-link load-example">load the example databases</button>.</p>
+      <div class="panel stack">
+        <h2>Export</h2>
+        <div class="form-grid">
+          <fieldset>
+            <legend>What</legend>
+            <div class="checks stacked">
+              <label class="check"><input type="radio" name="xWhich" value="working" checked> Current entries (after clean-up)</label>
+              <label class="check"><input type="radio" name="xWhich" value="decoy"> Decoy database from step 4</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Format</legend>
+            <div class="field">
+              <label for="xFormat">Format</label>
+              <select id="xFormat">
+                <option value="fasta">FASTA</option>
+                <option value="csv">CSV (one row per entry)</option>
+                <option value="peff">PEFF 1.0</option>
+              </select>
+            </div>
+            <label class="check"><input id="xGzip" type="checkbox"> Compress with gzip (.gz)</label>
+          </fieldset>
+        </div>
+        <details class="advanced" id="exportAdvanced">
+          <summary>Advanced options</summary>
+          <div class="details-body row">
+            <div class="field">
+              <label for="xLineWidth">FASTA line width (residues)</label>
+              <input id="xLineWidth" type="number" min="0" value="60" aria-describedby="xLineWidth-help">
+              <p id="xLineWidth-help" class="help">0 writes each sequence on one line.</p>
+            </div>
+            <div class="field">
+              <label for="xPeffPrefix">PEFF database for identifiers without a <code>db|</code> part</label>
+              <input id="xPeffPrefix" type="text" class="mono" value="gen">
+            </div>
+          </div>
+        </details>
+        <div class="cluster actions">
+          <button type="button" id="exportBtn" class="btn btn-primary" disabled>Download</button>
+        </div>
+      </div>
+      <div id="exportResult" class="result stack"></div>
+      <details class="about">
+        <summary>About this tool / Methods</summary>
+        <div class="details-body">
+          <p>FASTA is written with <code>fastatacular.write_fasta</code>. CSV has one row per entry with the columns of
+            <code>fastatacular.to_records</code> (identifier, parsed UniProt fields, sequence and length).</p>
+          <p>PEFF 1.0 is written with <code>pefftacular.write_peff</code>, one database block per identifier prefix
+            (<code>sp</code>, <code>tr</code>, …). Blocks whose prefix starts with a decoy prefix (the one set on the Decoys tab or a common one) are marked
+            <code>Decoy=true</code>. The file names of the loaded files go in <code>DbSource</code>.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- Shared digest settings: app.js moves this into the Stats or Decoy QC panel. -->
+    <fieldset class="digest-settings" id="digestSettings">
+      <legend>Digest</legend>
+      <div class="row">
+        <div class="field">
+          <label for="dEnzyme">Protease</label>
+          <select id="dEnzyme"></select>
+        </div>
+        <div class="field">
+          <label for="dMissed">Missed cleavages</label>
+          <input id="dMissed" type="number" min="0" max="5" value="1">
+        </div>
+        <div class="field">
+          <label for="dMin">Min length (residues)</label>
+          <input id="dMin" type="number" min="1" value="7">
+        </div>
+        <div class="field">
+          <label for="dMax">Max length (residues)</label>
+          <input id="dMax" type="number" min="1" value="40">
+        </div>
+      </div>
+    </fieldset>
+  </div>
 </main>
 
-<footer class="wrap foot">
-  <span id="versions" class="muted"></span>
-  <span class="muted">·</span>
-  <a href="https://github.com/tacular-omics/fastatacular/tree/main/site">source</a>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div id="cite">
+      <h2>How to cite</h2>
+      <p class="cite-text">Garrett PT, Yates JR III. fastatacular: A pure-Python library for reading and writing FASTA
+        sequence files. Zenodo. <a href="https://doi.org/10.5281/zenodo.22926358">doi:10.5281/zenodo.22926358</a></p>
+      <p>Digestion and masses: Garrett PT, Yates JR III. Peptacular: a Python package for amino acid sequence analysis
+        with ProForma 2.1. Zenodo. <a href="https://doi.org/10.5281/zenodo.15054278">doi:10.5281/zenodo.15054278</a></p>
+      <p>PEFF export: Garrett PT. pefftacular: Reading and writing PSI Extended FASTA files in Python. Zenodo.
+        <a href="https://doi.org/10.5281/zenodo.22925639">doi:10.5281/zenodo.22925639</a></p>
+    </div>
+    <div>
+      <h2>Software</h2>
+      <p id="versions" class="versions">…</p>
+      <p><a href="https://github.com/tacular-omics/fastatacular/tree/main/site">Site source</a> ·
+        <a href="https://github.com/tacular-omics/fastatacular">fastatacular on GitHub</a> · MIT licence</p>
+    </div>
+  </div>
 </footer>
 <div id="tooltip" class="tooltip" hidden></div>
 <script src="charts.js"></script>

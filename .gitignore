@@ -81,3 +81,6 @@ dmypy.json
 # editors
 .vscode/
 .idea/
+
+# Web app smoke-test screenshots
+scripts/screenshots/

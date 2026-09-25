@@ -1,0 +1,345 @@
+/* ==========================================================================
+   tacular-site.css — shared base for the tacular-omics Pyodide web tools.
+   Copy as-is into each site (same filename). Put site rules in the site's own
+   CSS file, loaded after this one. Do not fork the tokens.
+   ========================================================================== */
+
+/* ---------- 1. Tokens ---------------------------------------------------- */
+:root {
+  color-scheme: light;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-base: 15px;
+  --fs-small: 0.867rem;   /* ~13px */
+  --fs-xsmall: 0.8rem;    /* ~12px */
+  --lh: 1.5;
+
+  --bg: #fbfbfa;          /* page */
+  --surface: #ffffff;     /* panels, tables, plots */
+  --surface-2: #f3f4f5;   /* table header, summary tiles, code */
+  --text: #1b1d1f;
+  --text-muted: #53595f;  /* AA on --bg and --surface */
+  --border: #d9dcdf;
+  --border-strong: #8a9096;
+
+  --accent: #1f5f99;
+  --accent-hover: #174a78;
+  --accent-contrast: #ffffff;
+  --accent-soft: #e7eff7;
+  --focus: #1f5f99;
+
+  --error: #b3261e;    --error-bg: #fbeceb;
+  --warning: #8a5a00;  --warning-bg: #fbf3e2;
+  --success: #1e6b34;  --success-bg: #e9f4ec;
+  --info: #1f5f99;     --info-bg: #e7eff7;
+
+  --radius: 4px;
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem;
+  --space-4: 1rem;    --space-5: 1.5rem; --space-6: 2rem;
+  --maxw: 1200px;
+  --gutter: 16px;
+}
+
+/* Dark mode: same token names, darker values. Follows the OS unless a page sets
+   data-theme="light" on <html>; data-theme="dark" forces it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #16181a; --surface: #1d2023; --surface-2: #26292d;
+    --text: #e6e8ea; --text-muted: #a3a9af;
+    --border: #363a3f; --border-strong: #6b7178;
+    --accent: #7fb3e6; --accent-hover: #a5caef; --accent-contrast: #0d1b28;
+    --accent-soft: #1d2d3d; --focus: #7fb3e6;
+    --error: #f2968f;   --error-bg: #3a1f1d;
+    --warning: #e3b55c; --warning-bg: #352a14;
+    --success: #7cc98f; --success-bg: #1a3322;
+    --info: #7fb3e6;    --info-bg: #1d2d3d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #16181a; --surface: #1d2023; --surface-2: #26292d;
+  --text: #e6e8ea; --text-muted: #a3a9af;
+  --border: #363a3f; --border-strong: #6b7178;
+  --accent: #7fb3e6; --accent-hover: #a5caef; --accent-contrast: #0d1b28;
+  --accent-soft: #1d2d3d; --focus: #7fb3e6;
+  --error: #f2968f;   --error-bg: #3a1f1d;
+  --warning: #e3b55c; --warning-bg: #352a14;
+  --success: #7cc98f; --success-bg: #1a3322;
+  --info: #7fb3e6;    --info-bg: #1d2d3d;
+}
+
+/* ---------- 2. Reset and typography ------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; }
+html { font-size: var(--fs-base); -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-sans); line-height: var(--lh);
+}
+[hidden] { display: none !important; }
+h1, h2, h3, h4 { font-weight: 600; line-height: 1.25; margin: 0 0 var(--space-2); }
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.2rem; }
+h3 { font-size: 1rem; }
+h4 { font-size: 0.933rem; }
+p { margin: 0 0 var(--space-3); }
+p:last-child { margin-bottom: 0; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { color: var(--accent-hover); }
+code, kbd, samp, pre, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+code { background: var(--surface-2); padding: 0 0.25em; border-radius: 3px; overflow-wrap: anywhere; }
+pre { background: var(--surface-2); padding: var(--space-3); border-radius: var(--radius); overflow: auto; }
+abbr[title] { text-decoration: underline dotted; cursor: help; }
+small, .small { font-size: var(--fs-small); }
+.muted { color: var(--text-muted); }
+.num { font-variant-numeric: tabular-nums; }
+sub, sup { line-height: 0; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0; padding: 0; margin: -1px;
+}
+
+/* ---------- 3. Layout ---------------------------------------------------- */
+.container { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 var(--gutter); }
+main { flex: 1; padding: var(--space-4) 0 var(--space-6); }
+.stack > * + * { margin-top: var(--space-4); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-5); align-items: flex-end; }
+.cluster { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+@media (min-width: 900px) {
+  .split { grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); align-items: start; }
+}
+
+/* A plain bordered block. Do not nest panels inside panels. */
+.panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--space-4);
+}
+.panel > h2, .panel > h3 { margin-bottom: var(--space-3); }
+.panel-head {
+  display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline;
+  justify-content: space-between; margin-bottom: var(--space-3);
+}
+.panel-head > h2, .panel-head > h3 { margin: 0; }
+section + section { margin-top: var(--space-4); }
+
+/* ---------- 4. Header and footer ---------------------------------------- */
+.site-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+.site-header .container {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: var(--space-2) var(--space-5); padding-top: var(--space-3); padding-bottom: var(--space-3);
+}
+.site-title { margin: 0; font-size: 1.25rem; }
+.site-title a { color: inherit; text-decoration: none; }
+.site-desc { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-small); max-width: 72ch; }
+.site-links { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: var(--fs-small); padding-top: 0.2rem; }
+.site-links a { text-decoration: none; }
+.site-links a:hover { text-decoration: underline; }
+
+.site-footer {
+  border-top: 1px solid var(--border); background: var(--surface);
+  color: var(--text-muted); font-size: var(--fs-small);
+  padding: var(--space-4) 0 var(--space-5);
+}
+.site-footer h2 { font-size: 0.933rem; color: var(--text); margin-bottom: var(--space-1); }
+.site-footer .footer-grid { display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .site-footer .footer-grid { grid-template-columns: 2fr 1fr; } }
+.site-footer p { margin-bottom: var(--space-2); }
+.cite-text { color: var(--text); overflow-wrap: anywhere; }
+.versions { font-family: var(--font-mono); font-size: var(--fs-xsmall); }
+
+/* ---------- 5. Forms ----------------------------------------------------- */
+fieldset {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  margin: 0; padding: var(--space-3) var(--space-4) var(--space-4); min-width: 0;
+}
+legend { font-weight: 600; padding: 0 var(--space-1); }
+/* A fieldset used only to group checkboxes/radios inline, without a box. */
+fieldset.plain { border: 0; padding: 0; }
+fieldset.plain > legend { padding: 0; margin-bottom: var(--space-1); font-weight: 500; font-size: var(--fs-small); }
+
+.field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.field > label, .label { font-weight: 500; font-size: var(--fs-small); }
+.field .help, .help { color: var(--text-muted); font-size: var(--fs-xsmall); margin: 0; }
+.field-error { color: var(--error); font-size: var(--fs-small); margin: 0; }
+.field-error::before { content: "Error: "; font-weight: 600; }
+
+input[type="text"], input[type="number"], input[type="search"], input[type="url"],
+input:not([type]), select, textarea {
+  font: inherit; font-size: 0.933rem; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  padding: 0.35rem 0.5rem; min-height: 2.1rem; max-width: 100%;
+}
+textarea { min-height: 6rem; resize: vertical; width: 100%; }
+input.mono, textarea.mono { font-family: var(--font-mono); }
+input[type="number"] { font-variant-numeric: tabular-nums; width: 7rem; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; border-color: var(--focus); }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--error); }
+input:disabled, select:disabled, textarea:disabled { opacity: 0.6; cursor: not-allowed; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width: 1rem; height: 1rem; margin: 0; }
+input[type="range"] { accent-color: var(--accent); width: 10rem; max-width: 100%; }
+
+/* Inline checkbox/radio: <label class="check"><input type="checkbox"> b</label> */
+.check { display: inline-flex; align-items: center; gap: 0.35rem; margin-right: var(--space-3); white-space: nowrap; cursor: pointer; }
+.checks { display: flex; flex-wrap: wrap; row-gap: var(--space-1); }
+/* Range slider with its live value: <div class="range"><input type=range><output></output></div> */
+.range { display: flex; align-items: center; gap: var(--space-2); }
+.range output { font-family: var(--font-mono); font-variant-numeric: tabular-nums; min-width: 3ch; text-align: right; }
+
+/* ---------- 6. Buttons --------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1);
+  font: inherit; font-size: 0.933rem; font-weight: 500; line-height: 1.2;
+  padding: 0.4rem 0.85rem; min-height: 2.1rem; border-radius: var(--radius);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.btn:hover { background: var(--surface-2); color: var(--text); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-contrast); }
+.btn-small { font-size: var(--fs-small); padding: 0.2rem 0.55rem; min-height: 1.75rem; }
+.btn-link { border: 0; background: none; color: var(--accent); padding: 0; min-height: 0; text-decoration: underline; font-weight: 400; }
+.btn-link:hover { background: none; color: var(--accent-hover); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- 7. Tables ---------------------------------------------------- */
+/* Wrap every results table: <div class="table-wrap"><table class="data">…</table></div>.
+   The wrapper scrolls (both axes) so the page never scrolls sideways. */
+.table-wrap {
+  overflow: auto; max-height: 32rem; max-width: 100%;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.table-wrap.tall { max-height: 48rem; }
+.table-wrap.auto { max-height: none; }
+table.data { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-small); }
+table.data th, table.data td {
+  padding: 0.3rem 0.6rem; text-align: left; vertical-align: baseline;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+table.data thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--surface-2); font-weight: 600; color: var(--text);
+  border-bottom: 1px solid var(--border-strong);
+}
+table.data tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-2) 45%, var(--surface)); }
+table.data tbody tr:hover td { background: var(--accent-soft); }
+table.data tbody tr:last-child td { border-bottom: 0; }
+/* Numbers: right-aligned, tabular, monospace. Mark cells and their header with .num. */
+table.data .num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+table.data .seq, table.data .mono { font-family: var(--font-mono); }
+table.data .mono, table.data .seq, table.data .num { font-size: inherit; }
+table.data th.num { font-family: inherit; }
+table.data td.wrap { white-space: normal; }
+table.data tr.dim td { color: var(--text-muted); }
+table.data caption { caption-side: top; text-align: left; font-size: var(--fs-small); color: var(--text-muted); padding: var(--space-2); }
+/* Sortable headers: <th aria-sort="none"><button class="th-sort">m/z</button></th> */
+.th-sort { font: inherit; font-weight: 600; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
+.th-sort::after { content: " \2195"; color: var(--text-muted); font-weight: 400; }
+th[aria-sort="ascending"] .th-sort::after { content: " \2191"; color: var(--text); }
+th[aria-sort="descending"] .th-sort::after { content: " \2193"; color: var(--text); }
+
+/* Key/value summary: <dl class="stats"><div><dt>Mass (Da)</dt><dd>799.36</dd></div>…</dl> */
+/* Items grow to fill each row; the -1px margins collapse the hairlines between them. */
+.stats { display: flex; flex-wrap: wrap; margin: 0; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.stats > div { flex: 1 1 9.5rem; min-width: 0; padding: var(--space-2) var(--space-3);
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 0 -1px -1px 0; }
+.stats dt { font-size: var(--fs-xsmall); color: var(--text-muted); }
+.stats dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 1rem; overflow-wrap: anywhere; }
+
+/* ---------- 8. Alerts, status, empty states ----------------------------- */
+/* <p class="alert alert-error" role="alert"><strong>Error:</strong> plain words + the fix</p> */
+.alert {
+  --alert-c: var(--info);
+  border: 1px solid var(--border); border-left: 4px solid var(--alert-c); border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3); margin: 0; font-size: var(--fs-small);
+  color: var(--text); background: var(--info-bg); overflow-wrap: anywhere;
+}
+.alert > strong:first-child { color: var(--alert-c); }
+.alert-error { --alert-c: var(--error); background: var(--error-bg); }
+.alert-warning { --alert-c: var(--warning); background: var(--warning-bg); }
+.alert-success { --alert-c: var(--success); background: var(--success-bg); }
+
+/* Runtime status line: spinner + text + optional <progress>. Use role="status". */
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--fs-small); color: var(--text-muted); }
+.status[data-state="ready"] { color: var(--success); }
+.status[data-state="error"] { color: var(--error); }
+.status progress { width: 8rem; height: 0.5rem; accent-color: var(--accent); }
+.spinner {
+  width: 0.9rem; height: 0.9rem; flex: none; border-radius: 50%;
+  border: 2px solid var(--border-strong); border-top-color: var(--accent);
+  animation: tacular-spin 0.8s linear infinite;
+}
+.status[data-state="ready"] .spinner, .status[data-state="error"] .spinner,
+.status[data-state="ready"] progress, .status[data-state="error"] progress { display: none; }
+@keyframes tacular-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+/* A result region waiting for data: <div aria-busy="true">. */
+[aria-busy="true"] { opacity: 0.6; transition: opacity 0.15s; }
+
+.empty {
+  color: var(--text-muted); font-size: var(--fs-small); padding: var(--space-4);
+  border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface);
+}
+
+/* ---------- 9. Details / summary ---------------------------------------- */
+details { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+details > summary {
+  cursor: pointer; padding: var(--space-2) var(--space-3); font-weight: 500; font-size: 0.933rem;
+  list-style-position: inside;
+}
+details > summary:hover { color: var(--accent-hover); }
+details[open] > summary { border-bottom: 1px solid var(--border); }
+details > .details-body { padding: var(--space-3); }
+/* "Advanced options" inside a form: lighter, no box. */
+details.advanced { border: 0; background: none; }
+details.advanced > summary { padding: var(--space-1) 0; color: var(--accent); font-size: var(--fs-small); }
+details.advanced[open] > summary { border-bottom: 0; }
+details.advanced > .details-body { padding: var(--space-2) 0 0; }
+/* "About this tool / Methods": prose. */
+details.about .details-body { font-size: var(--fs-small); max-width: 80ch; }
+details.about .details-body ul { padding-left: 1.2rem; margin: 0 0 var(--space-3); }
+
+/* ---------- 10. Tabs ----------------------------------------------------- */
+/* <nav class="tabs" role="tablist"><a class="tab" role="tab" aria-selected="true">…</a></nav> */
+.tabs {
+  display: flex; gap: 0; border-bottom: 1px solid var(--border-strong);
+  overflow-x: auto; scrollbar-width: thin; margin-bottom: var(--space-4);
+}
+.tab {
+  flex: none; padding: var(--space-2) var(--space-4); margin-bottom: -1px;
+  font-weight: 500; font-size: 0.933rem; color: var(--text-muted); text-decoration: none;
+  border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius) var(--radius) 0 0;
+  background: none; cursor: pointer; font-family: inherit;
+}
+.tab:hover { color: var(--text); background: var(--surface-2); }
+.tab[aria-selected="true"], .tab.active {
+  color: var(--text); background: var(--surface);
+  border-color: var(--border-strong); border-bottom: 1px solid var(--surface);
+}
+.tab-panel:focus-visible { outline: none; }
+
+/* ---------- 11. Plots ---------------------------------------------------- */
+.plot { width: 100%; min-height: 320px; background: var(--surface); }
+.plot-wrap { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: var(--space-2); }
+
+/* ---------- 12. Small screens (down to 360px) --------------------------- */
+@media (max-width: 600px) {
+  :root { --gutter: 12px; }
+  html { font-size: 14.5px; }
+  .panel { padding: var(--space-3); }
+  fieldset { padding: var(--space-2) var(--space-3) var(--space-3); }
+  .tab { padding: var(--space-2) var(--space-3); }
+  .row { gap: var(--space-3); }
+  .stats > div { flex-basis: 40%; }
+  .table-wrap { max-height: 24rem; }
+}
+
+/* ---------- 13. Print ---------------------------------------------------- */
+@media print {
+  .site-links, .tabs, .btn, details.advanced, .status { display: none !important; }
+  .table-wrap { max-height: none; overflow: visible; border: 0; }
+  body { background: #fff; color: #000; }
+}

@@ -14,7 +14,10 @@ Serves ``site/`` with ``python -m http.server`` on a free port, drives it in hea
 Chromium, exercises every feature with the example files, and compares the numbers the
 page shows with the same computation in CPython (``site/toolkit.py`` imported directly,
 against the PyPI releases the page installs). Fails on any console error or page error.
-Then times a synthetic 20,000-entry proteome end to end.
+Then saves screenshots of every tab (1280 px light and dark, 390 px light) into
+``scripts/screenshots/`` (gitignored; ``SCREENSHOT_COPY_DIR`` copies them elsewhere too),
+checks nothing scrolls sideways at 390 px, and times a synthetic 20,000-entry proteome
+end to end.
 
     uv run scripts/site_smoke.py                 # PEP 723 deps: playwright + the PyPI packages
     uv run scripts/site_smoke.py --entries 2000  # smaller timing run
@@ -32,6 +35,7 @@ import gzip
 import io
 import json
 import lzma
+import os
 import random
 import shutil
 import socket
@@ -47,6 +51,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 EX1 = SITE / "examples" / "human_ecoli_mix.fasta"
 EX2 = SITE / "examples" / "contaminants_with_decoys.fasta"
+SHOTS = ROOT / "scripts" / "screenshots"
 BOOT_MS = 300_000
 STEP_MS = 600_000
 
@@ -117,7 +122,13 @@ def load_files(page: Page, paths: list[Path], append: bool = False) -> dict:
 
 
 def tile(page: Page, tile_id: str) -> str:
-    return page.inner_text(f"#{tile_id} .v")
+    return page.inner_text(f"#{tile_id} dd")
+
+
+def open_details(page: Page, selector: str) -> None:
+    """Open a collapsed <details> (Advanced options) the way a user would, by its summary."""
+    if not page.locator(selector).evaluate("d => d.open"):
+        page.click(f"{selector} > summary")
 
 
 # ----------------------------------------------------------------------------- CPython reference
@@ -331,6 +342,7 @@ def decoy_opts(case: dict, prefix: str = "DECOY_", concatenate: bool = True) -> 
 
 
 def set_decoy_form(page: Page, o: dict) -> None:
+    open_details(page, "#decoyAdvanced")
     page.select_option("#mMethod", o["method"])
     page.fill("#mPrefix", o["prefix"])
     page.fill("#mSeed", o["seed"])
@@ -514,6 +526,70 @@ def check_errors_shown(page: Page) -> None:
     page.fill("#mPrefix", "DECOY_")
 
 
+# ----------------------------------------------------------------------------- screenshots
+
+TABS = ["input", "clean", "stats", "decoys", "qc", "export"]
+VIEWS = [(1280, "light"), (1280, "dark"), (390, "light")]
+
+
+def shoot(page: Page, name: str, dirs: list[Path]) -> None:
+    for d in dirs:
+        d.mkdir(parents=True, exist_ok=True)
+    first = dirs[0] / f"{name}.png"
+    page.screenshot(path=str(first), full_page=True)
+    for d in dirs[1:]:
+        shutil.copyfile(first, d / first.name)
+
+
+def overflow_x(page: Page) -> int:
+    return page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+
+
+def check_empty_state(page: Page, dirs: list[Path]) -> None:
+    """Right after boot: the Decoy QC empty state, and its Load example button."""
+    print("empty state")
+    tab(page, "qc")
+    ok(page.locator(".needs-decoys").is_visible(), "Decoy QC shows an empty state before decoys exist")
+    shoot(page, "empty-qc-1280-light", dirs)
+    page.click("[data-panel=qc] .load-example")
+    page.wait_for_function("window.toolkit.results.decoys !== undefined", timeout=STEP_MS)
+    wait_idle(page)
+    r = page.evaluate("window.toolkit.results")
+    ok(
+        r["load"]["entries"] == 63 and r["decoys"]["targets"] == 57,
+        "empty-state Load example loads both examples (63 entries) and makes decoys for 57 targets",
+    )
+    ok(not page.locator(".needs-decoys").is_visible() and not page.is_disabled("#qcBtn"), "QC is ready after it")
+
+
+def screenshots(page: Page, dirs: list[Path]) -> None:
+    """Every tab with results, at each viewport; nothing may scroll sideways at 390 px."""
+    print("screenshots")
+    tab(page, "input")
+    page.click("#loadBothExamples")
+    page.wait_for_function("window.toolkit.results.load && window.toolkit.results.load.entries === 63", timeout=STEP_MS)
+    wait_idle(page)
+    actions = {"clean": "#cleanBtn", "stats": "#statsPepBtn", "decoys": "#decoyBtn", "qc": "#qcBtn"}
+    for name in TABS:
+        tab(page, name)
+        if name == "decoys":
+            set_decoy_form(page, decoy_opts({"method": "pseudo_reverse"}))
+        if name in actions:
+            page.click(actions[name])
+            page.wait_for_timeout(200)
+            wait_idle(page)
+        for width, scheme in VIEWS:
+            page.set_viewport_size({"width": width, "height": 900})
+            page.emulate_media(color_scheme=scheme)
+            page.wait_for_timeout(300)
+            shoot(page, f"{name}-{width}-{scheme}", dirs)
+            if width == 390:
+                ok(overflow_x(page) <= 0, f"{name}: no horizontal scroll at 390 px")
+        page.set_viewport_size({"width": 1280, "height": 900})
+        page.emulate_media(color_scheme="light")
+    ok(len(list(dirs[0].glob("*.png"))) >= len(TABS) * len(VIEWS), f"screenshots saved in {dirs[0]}")
+
+
 # ----------------------------------------------------------------------------- timing
 
 
@@ -619,7 +695,7 @@ def main() -> int:
         time.sleep(0.5)
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            ctx = browser.new_context(accept_downloads=True)
+            ctx = browser.new_context(accept_downloads=True, viewport={"width": 1280, "height": 900})
             page = ctx.new_page()
             page.on("console", lambda m: problems.append(f"console.{m.type}: {m.text}") if m.type == "error" else None)
             page.on("pageerror", lambda e: problems.append(f"pageerror: {e}"))
@@ -635,12 +711,16 @@ def main() -> int:
                 "links to fastaviewer",
             )
 
+            copy_dir = os.environ.get("SCREENSHOT_COPY_DIR")
+            shot_dirs = [SHOTS] + ([Path(copy_dir)] if copy_dir else [])
+            check_empty_state(page, shot_dirs)
             check_input(page, work)
             check_cleanup(page)
             check_stats(page)
             check_decoys_and_qc(page)
             check_export(page)
             check_errors_shown(page)
+            screenshots(page, shot_dirs)
             result = {"boot_seconds": round(boot, 1), "versions": versions}
             if args.entries:
                 result["timing"] = timing(page, work, args.entries)
