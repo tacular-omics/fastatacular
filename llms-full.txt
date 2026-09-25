@@ -45,9 +45,9 @@ Everything public is importable from the top-level package:
         RECORD_KEYS,       # the record keys, in order
     )
     import fastatacular
-    fastatacular.__version__   # e.g. "1.0.0"
+    fastatacular.__version__   # e.g. "1.1.0"
 
-There is no CLI and no logging. The decoy names live in the public module
+There is no CLI. The only logging is one warning from `FastaIndex(..., duplicates="first")`. The decoy names live in the public module
 `fastatacular.decoys` and are re-exported at the top level. There are no other submodules you need to import directly
 (`fastatacular._parser`, `._writer`, `._models` are private; `fastatacular.errors` is
 importable but its names are re-exported at the top level).
