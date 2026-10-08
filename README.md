@@ -66,8 +66,8 @@ entries = read_fasta("uniprot_sprot.fasta.gz")
 Every reader and writer takes a pandas-style `compression=` keyword (type alias
 `fastatacular.Compression`): `"infer"` (default), `"gzip"`, `"bz2"`, `"xz"` or `None`.
 On read, `"infer"` sniffs the magic bytes, an explicit format is forced (input in another
-format raises `FastaError`) and `None` reads plain text. An open handle needs explicit
-compression and binary mode to be decompressed:
+format raises `FastaParseError`) and `None` reads plain text. A binary handle is read
+as plain UTF-8 unless you pass an explicit format:
 
 ```python
 entries = read_fasta("download.bin", compression="gzip")
@@ -144,12 +144,13 @@ entries = [
 write_fasta(entries, "output.fasta")
 ```
 
-`dest` accepts a path string, a `pathlib.Path`, or a file object. With the default
+`dest` accepts a path string, a `pathlib.Path`, or a text or binary file object (a
+binary one gets UTF-8 bytes; a handle is never closed). With the default
 `compression="infer"`, a path ending in `.gz`, `.bz2` or `.xz` (any case) is written gzip,
 bzip2 or xz compressed and anything else, including a handle, is plain text.
 `compression="gzip"`, `"bz2"` or `"xz"` forces that format whatever the suffix (a handle
-must then be opened `"wb"`; it is left open), and `compression=None` always writes plain
-text. gzip output has mtime 0, so the same entries give the same bytes.
+must then be binary), and `compression=None` always writes plain text. gzip output has
+mtime 0 and no file name in its header, so the same entries give the same bytes.
 
 ```python
 write_fasta(entries, "output.fa", compression="xz")

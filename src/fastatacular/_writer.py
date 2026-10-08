@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import io
 from collections.abc import Iterable
 from pathlib import Path
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
-from fastatacular._compression import _KINDS, Compression, _check_compression, _is_text_handle
+from fastatacular._compression import _KINDS, Compression, _check_compression, _DetachingText, _is_text_handle
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import _MODULES, _parse_header_line, _ParsedHeader, _split_kv
 from fastatacular.errors import FastaError, FastaParseError, FastaWriteError
+
+if TYPE_CHECKING:
+    import gzip
 
 _SEQ_LINE_WIDTH = 60
 
@@ -223,18 +227,17 @@ def _compressor(kind: str, target: Path | IO[bytes], name: object) -> IO[str]:
 
     Closing it finishes the compressed stream; a handle ``target`` is left open.
     """
-    import io
 
     try:
         if kind == "gz":
             import gzip
 
-            # mtime=0 so the same entries always give the same bytes (gzip.open stamps the
-            # current time into the header).
+            # mtime=0 and filename="" so the same entries always give the same bytes
+            # (gzip.open stamps the current time and the file name into the header).
             if isinstance(target, Path):
-                binary = gzip.GzipFile(target, mode="wb", mtime=0)
+                binary = _owning_gzip(target)
             else:
-                binary = gzip.GzipFile(fileobj=target, mode="wb", mtime=0)
+                binary = gzip.GzipFile(filename="", fileobj=target, mode="wb", mtime=0)
         elif kind == "bz2":
             import bz2
 
@@ -249,6 +252,26 @@ def _compressor(kind: str, target: Path | IO[bytes], name: object) -> IO[str]:
             hint=f"Write uncompressed output, or use a Python built with {_MODULES[kind]} support",
         ) from e
     return io.TextIOWrapper(binary, encoding="utf-8")
+
+
+def _owning_gzip(path: Path) -> gzip.GzipFile:
+    """A reproducible gzip writer to ``path`` (no name or time in the header) that closes the file."""
+    import gzip
+
+    raw = path.open("wb")
+
+    class _Gzip(gzip.GzipFile):
+        def close(self) -> None:
+            try:
+                super().close()
+            finally:
+                raw.close()
+
+    try:
+        return _Gzip(filename="", fileobj=raw, mode="wb", mtime=0)
+    except BaseException:
+        raw.close()
+        raise
 
 
 def _open_for_write(path: Path, compression: Compression = "infer") -> IO[str]:
@@ -268,7 +291,12 @@ def _write_items(
         return
     kind = _write_kind(None, compression)
     if kind is None:
-        _write_prepared(items, dest)  # ty: ignore[invalid-argument-type]
+        if _is_text_handle(dest):
+            _write_prepared(items, dest)  # ty: ignore[invalid-argument-type]
+        else:
+            # Plain UTF-8 to a binary handle; detach (not close) so the handle stays open.
+            with _DetachingText(dest, encoding="utf-8") as fh:  # ty: ignore[invalid-argument-type]
+                _write_prepared(items, fh)
         return
     with _compressor(kind, dest, "the handle") as fh:  # ty: ignore[invalid-argument-type]
         _write_prepared(items, fh)
@@ -293,7 +321,7 @@ def write_fasta(
 ) -> None:
     """Write a sequence of ``SequenceEntry`` objects to FASTA.
 
-    ``dest`` may be a path or an already-opened file object.
+    ``dest`` may be a path or an already-opened text or binary file object.
     ``line_width`` controls sequence wrapping; pass ``0`` (or any value ``<= 0``)
     to emit each sequence on a single line.
 
@@ -304,10 +332,12 @@ def write_fasta(
     Args:
         compression: ``"infer"`` (default) compresses a path ending in ``.gz``,
             ``.bz2`` or ``.xz`` (any case) with gzip, bzip2 or xz and writes plain
-            text otherwise and to a handle. ``"gzip"``, ``"bz2"`` or ``"xz"`` forces
-            that format whatever the suffix; a handle must then be binary
-            (``"wb"``) and is left open. ``None`` always writes plain text. gzip
-            output has mtime 0, so the same entries give the same bytes.
+            text otherwise and to a handle (UTF-8 bytes to a binary handle).
+            ``"gzip"``, ``"bz2"`` or ``"xz"`` forces that format whatever the
+            suffix; a handle must then be binary (``"wb"``). ``None`` always writes
+            plain text. A handle is never closed, even on error. gzip output has
+            mtime 0 and no file name in its header, so the same entries give the
+            same bytes.
 
     Raises:
         FastaError: An unknown ``compression``, or a text handle with an explicit one.

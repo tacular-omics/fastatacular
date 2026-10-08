@@ -60,15 +60,18 @@ importable but its names are re-exported at the top level).
 
         The `compression=` keyword of every reader and writer (pandas style, same as
         pefftacular). Any other value -> FastaError listing the valid ones.
-        Read:  "infer" (default) sniffs a path's magic bytes; a handle is read as text.
+        Read:  "infer" (default) sniffs a path's magic bytes; a handle is read as
+               text (a binary handle as plain UTF-8, no sniffing).
                "gzip"/"bz2"/"xz" force that format: the path or BINARY handle must
-               start with its magic bytes, else FastaError; a text handle -> FastaError.
+               start with its magic bytes, else FastaParseError; a text handle ->
+               FastaError.
                None reads plain text even if the bytes look compressed.
         Write: "infer" (default) compresses a path by suffix (.gz/.bz2/.xz, any case),
-               plain otherwise and always plain to a handle. "gzip"/"bz2"/"xz" force
-               that format whatever the suffix; a handle must then be binary ("wb")
-               and is left open (text handle -> FastaError). None is always plain.
-               gzip output has mtime 0 (reproducible bytes).
+               plain otherwise and always plain to a handle (UTF-8 bytes to a binary
+               one). "gzip"/"bz2"/"xz" force that format whatever the suffix; a
+               handle must then be binary ("wb") (text handle -> FastaError). None
+               is always plain. Handles are never closed, even on error. gzip
+               output has mtime 0 and no file name (reproducible bytes).
 
     read_fasta(source: str | Path | IO[str] | IO[bytes], *,
                compression: Compression = "infer") -> list[SequenceEntry]
@@ -76,7 +79,8 @@ importable but its names are re-exported at the top level).
         Read an entire FASTA file into a list of SequenceEntry objects.
         `source` is a filesystem path (str or pathlib.Path), opened as UTF-8, or an
         already-open text-mode file object (anything iterable over lines, e.g.
-        io.StringIO or open(...)), or a binary handle with an explicit compression.
+        io.StringIO or open(...)), or a binary handle (plain UTF-8, or decompressed
+        with an explicit compression).
         A handle you pass in is not closed.
 
     class FastaReader(source: str | Path | IO[str] | IO[bytes], *,
@@ -97,7 +101,7 @@ importable but its names are re-exported at the top level).
                 *, line_width: int = 60, compression: Compression = "infer") -> None
 
         Write entries to FASTA. `dest` is a path (opened "w", UTF-8, overwriting)
-        or an open text-mode file object (written to, not closed). `entries` can be
+        or an open text or binary file object (written to, not closed). `entries` can be
         any iterable, including a generator. `line_width` wraps sequence lines;
         0 or any value <= 0 writes each sequence on a single line.
         All entries are validated before anything is written; on FastaWriteError

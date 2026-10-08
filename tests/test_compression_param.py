@@ -202,9 +202,9 @@ def test_read_explicit_wrong_format_raises(tmp_path: Path, fmt: str, actual: str
         return
     path = tmp_path / f"x.fasta{SUFFIX[fmt]}"  # suffix agrees with the wrong explicit value
     path.write_bytes(COMPRESS[actual](TEXT.encode()) if actual else TEXT.encode())
-    with pytest.raises(FastaError, match=f"compression='{fmt}'"):
+    with pytest.raises(FastaParseError, match=f"compression='{fmt}'"):
         read_fasta(path, compression=fmt)  # type: ignore[arg-type]
-    with pytest.raises(FastaError), FastaReader(path, compression=fmt):  # type: ignore[arg-type]
+    with pytest.raises(FastaParseError), FastaReader(path, compression=fmt):  # type: ignore[arg-type]
         pass
 
 
@@ -247,9 +247,9 @@ def test_read_binary_handle_explicit(entries: list[SequenceEntry], fmt: str) -> 
 @pytest.mark.parametrize("fmt", FORMATS)
 def test_read_binary_handle_wrong_format(fmt: str) -> None:
     other = next(f for f in FORMATS if f != fmt)
-    with pytest.raises(FastaError, match=f"compression='{fmt}'"):
+    with pytest.raises(FastaParseError, match=f"compression='{fmt}'"):
         read_fasta(io.BytesIO(COMPRESS[other](TEXT.encode())), compression=fmt)  # type: ignore[arg-type]
-    with pytest.raises(FastaError, match="plain text"):
+    with pytest.raises(FastaParseError, match="plain text"):
         read_fasta(io.BytesIO(TEXT.encode()), compression=fmt)  # type: ignore[arg-type]
 
 
@@ -297,3 +297,71 @@ def test_train_markov_model_compression(tmp_path: Path, fmt: str) -> None:
     assert model.metadata["entries"] == 2
     with pytest.raises(FastaParseError):
         train_markov_model(path, order=0, compression=None)
+
+
+# --- binary handles without an explicit format, reproducible gzip ---------------------
+
+
+@pytest.mark.parametrize("compression", ["infer", None])
+def test_read_binary_handle_plain(tmp_path: Path, entries: list[SequenceEntry], compression: Compression) -> None:
+    buf = io.BytesIO(("\ufeff" + TEXT).encode())
+    assert read_fasta(buf, compression=compression) == entries
+    assert not buf.closed
+    buf = io.BytesIO(TEXT.encode())
+    with FastaReader(buf, compression=compression) as reader:
+        assert list(reader) == entries
+    assert not buf.closed
+    path = tmp_path / "x.fasta"
+    path.write_text(TEXT)
+    with path.open("rb", buffering=0) as raw:
+        assert read_fasta(raw, compression=compression) == entries
+        assert not raw.closed
+    with path.open("rb") as fh:
+        n = write_decoy_fasta(fh, tmp_path / "d.fasta", method="reverse")
+        assert not fh.closed
+    assert n == 2
+
+
+@pytest.mark.parametrize("fmt", FORMATS)
+def test_read_binary_handle_infer_does_not_sniff(fmt: str) -> None:
+    buf = io.BytesIO(COMPRESS[fmt](TEXT.encode()))
+    with pytest.raises(FastaParseError):
+        read_fasta(buf)
+    assert not buf.closed
+
+
+@pytest.mark.parametrize("compression", ["infer", None])
+def test_write_binary_handle_plain(entries: list[SequenceEntry], compression: Compression) -> None:
+    buf = io.BytesIO()
+    write_fasta(entries, buf, compression=compression)
+    assert not buf.closed
+    assert buf.getvalue() == TEXT.encode()
+    buf.write(b"after")  # still usable
+
+
+class _FailingWriter(io.BytesIO):
+    def write(self, data: object) -> int:  # type: ignore[override]
+        raise OSError("disk full")
+
+
+@pytest.mark.parametrize("compression", ["infer", None, *FORMATS])
+def test_write_error_leaves_handle_open(entries: list[SequenceEntry], compression: Compression) -> None:
+    import gc
+
+    buf = _FailingWriter()
+    with pytest.raises(OSError, match="disk full"):
+        write_fasta(entries, buf, compression=compression)
+    gc.collect()
+    assert not buf.closed
+
+
+def test_gzip_bytes_independent_of_name(tmp_path: Path, entries: list[SequenceEntry]) -> None:
+    a, b = tmp_path / "a.fasta.gz", tmp_path / "other_name.out"
+    write_fasta(entries, a)
+    write_fasta(entries, b, compression="gzip")
+    with (tmp_path / "handle_name.bin").open("wb") as fh:
+        write_fasta(entries, fh, compression="gzip")
+    buf = io.BytesIO()
+    write_fasta(entries, buf, compression="gzip")
+    assert a.read_bytes() == b.read_bytes() == (tmp_path / "handle_name.bin").read_bytes() == buf.getvalue()
+    assert a.read_bytes()[3] & 0x08 == 0  # no FNAME field in the header

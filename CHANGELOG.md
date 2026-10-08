@@ -11,9 +11,10 @@ All notable changes to this project will be documented in this file.
   type alias `Compression = Literal["infer", "gzip", "bz2", "xz"] | None` (same as
   pefftacular). `"infer"` (default) keeps the old behaviour: magic bytes on read, path
   suffix on write. An explicit format overrides the suffix on write and is enforced on
-  read (other input raises `FastaError`); `None` means plain text. Binary handles can be
-  read or written compressed with an explicit format; a text handle then raises
-  `FastaError`. `FastaIndex` still indexes only uncompressed files.
+  read (other input raises `FastaParseError`); `None` means plain text. Binary handles
+  are read and written as plain UTF-8, or compressed with an explicit format (a text
+  handle then raises `FastaError`); a handle is never closed. gzip output no longer
+  stores the file name, so it depends only on the entries. `FastaIndex` still indexes only uncompressed files.
 - FASTA Toolkit web app (`site/`, deployed to https://tacular-omics.github.io/fastatacular/ by `.github/workflows/pages.yml`): decoys with every method, decoy QC with peptacular, clean-up and merge, stats, and FASTA/CSV/PEFF export, all in the browser with Pyodide. `scripts/site_smoke.py` tests it headless. Not part of the Python package.
 
 ### Fixed

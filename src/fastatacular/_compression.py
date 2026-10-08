@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 from typing import Literal
 
 from fastatacular.errors import FastaError
@@ -32,9 +33,19 @@ def _check_compression(compression: object) -> Compression:
 
 def _is_text_handle(handle: object) -> bool:
     """Whether an open file object reads/writes ``str`` (has an ``encoding``)."""
-    import io
-
     return isinstance(handle, io.TextIOBase) or hasattr(handle, "encoding")
+
+
+class _DetachingText(io.TextIOWrapper):
+    """UTF-8 text over a caller's binary handle; ``close`` flushes and detaches, leaving it open."""
+
+    _done = False
+
+    def close(self) -> None:
+        if self._done:
+            return
+        self._done = True
+        self.detach()
 
 
 __all__ = ["Compression"]

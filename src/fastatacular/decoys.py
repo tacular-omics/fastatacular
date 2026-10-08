@@ -567,7 +567,7 @@ def is_decoy(entry: SequenceEntry | str, *, prefix: str = DEFAULT_PREFIX) -> boo
 
 
 def write_decoy_fasta(
-    src: str | Path | IO[str],
+    src: str | Path | IO[str] | IO[bytes],
     dst: str | Path | IO[str] | IO[bytes],
     *,
     method: DecoyMethod,
