@@ -358,7 +358,7 @@ def test_crlf_bom_input_from_every_source(
 # the template was filled with; rebuilding the header from those fields must read
 # back to the same fields.
 
-# Tags in front of the identifier. All of them are also recognized in front of ``gi|``.
+# Tags in front of the identifier. All of them are also recognized in front of ``gi|`` and ``pdb|``.
 TAGS = [
     "",
     "DECOY_",
@@ -426,10 +426,11 @@ def templated_headers(draw: st.DrawFn) -> tuple[str, dict[str, Any]]:
     if style == "gi":
         db = draw(st.sampled_from(["ref", "gb", "emb", "dbj", "sp"]))
         acc = draw(refseq_acc if db == "ref" else genbank_acc)
-        trailing = draw(st.sampled_from(["|", ""]))
-        ident = f"{tag}gi|{draw(number)}|{db}|{acc}{trailing}"
+        # The fifth field is empty, missing, or (as NCBI writes for Swiss-Prot) the entry name.
+        fifth = draw(st.sampled_from(["|", ""]) | entry_name.map(lambda e: f"|{e}"))
+        ident = f"{tag}gi|{draw(number)}|{db}|{acc}{fifth}"
         pname = f"{name} [{draw(name_text)}]"
-        expected |= {"prefix": tag + "gi", "accession": acc, "pname": pname}
+        expected |= {"prefix": tag + "gi", "accession": acc, "entry_name": fifth[1:] or None, "pname": pname}
         return f">{ident} {pname}", {"identifier": ident, **expected}
     if style == "gi_pdb":
         pdb, chain = draw(pdb_id), draw(st.just("") | pdb_chain)
@@ -443,10 +444,10 @@ def templated_headers(draw: st.DrawFn) -> tuple[str, dict[str, Any]]:
         expected |= {"prefix": tag + db, "accession": acc, "pname": name}
         return f">{ident} {name}", {"identifier": ident, **expected}
     if style == "pdb":
-        # NCBI ``pdb|ENTRY|CHAIN``: three fields, so the chain is the entry_name.
+        # NCBI ``pdb|ENTRY|CHAIN``: the accession is ENTRY_CHAIN, as for ``gi|N|pdb|...``.
         pdb, chain = draw(pdb_id), draw(pdb_chain)
         ident = f"{tag}pdb|{pdb}|{chain}"
-        expected |= {"prefix": tag + "pdb", "accession": pdb, "entry_name": chain, "pname": name}
+        expected |= {"prefix": tag + "pdb", "accession": f"{pdb}_{chain}", "pname": name}
         return f">{ident} {name}", {"identifier": ident, **expected}
     # No pipes: the whole first word is the identifier, with no prefix or accession.
     expected |= {"prefix": None, "accession": None}
