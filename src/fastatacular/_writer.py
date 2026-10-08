@@ -251,7 +251,7 @@ def _compressor(kind: str, target: Path | IO[bytes], name: object) -> IO[str]:
             f"Cannot write {name}: this Python has no {_MODULES[kind]} module",
             hint=f"Write uncompressed output, or use a Python built with {_MODULES[kind]} support",
         ) from e
-    return io.TextIOWrapper(binary, encoding="utf-8")
+    return io.TextIOWrapper(binary, encoding="utf-8", newline="\n")
 
 
 def _owning_gzip(path: Path) -> gzip.GzipFile:
@@ -278,7 +278,7 @@ def _open_for_write(path: Path, compression: Compression = "infer") -> IO[str]:
     """Open ``path`` for UTF-8 text output, compressed per ``compression`` (see :func:`write_fasta`)."""
     kind = _write_kind(path, compression)
     if kind is None:
-        return path.open("w", encoding="utf-8")
+        return path.open("w", encoding="utf-8", newline="\n")
     return _compressor(kind, path, path)
 
 
@@ -295,7 +295,7 @@ def _write_items(
             _write_prepared(items, dest)  # ty: ignore[invalid-argument-type]
         else:
             # Plain UTF-8 to a binary handle; detach (not close) so the handle stays open.
-            with _DetachingText(dest, encoding="utf-8") as fh:  # ty: ignore[invalid-argument-type]
+            with _DetachingText(dest, encoding="utf-8", newline="\n") as fh:  # ty: ignore[invalid-argument-type]
                 _write_prepared(items, fh)
         return
     with _compressor(kind, dest, "the handle") as fh:  # ty: ignore[invalid-argument-type]

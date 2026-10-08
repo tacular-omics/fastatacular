@@ -365,3 +365,15 @@ def test_gzip_bytes_independent_of_name(tmp_path: Path, entries: list[SequenceEn
     write_fasta(entries, buf, compression="gzip")
     assert a.read_bytes() == b.read_bytes() == (tmp_path / "handle_name.bin").read_bytes() == buf.getvalue()
     assert a.read_bytes()[3] & 0x08 == 0  # no FNAME field in the header
+
+
+@pytest.mark.parametrize("compression", ["infer", None, *FORMATS])
+def test_output_is_lf_on_every_os(tmp_path: Path, entries: list[SequenceEntry], compression: Compression) -> None:
+    path = tmp_path / "o.fasta"
+    write_fasta(entries, path, compression=compression)
+    buf = io.BytesIO()
+    write_fasta(entries, buf, compression=compression)
+    for data in (path.read_bytes(), buf.getvalue()):
+        fmt = _format(data)
+        raw = DECOMPRESS[fmt](data) if fmt else data
+        assert raw == TEXT.encode()

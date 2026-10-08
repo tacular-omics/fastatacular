@@ -19,6 +19,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- `write_fasta` and `write_decoy_fasta` write `\n` line endings on every OS; on Windows a
+  path or compressed output used to get `\r\n`.
 - Decoys: residues and `keep_residues` now match case-insensitively in every method.
   A lowercase target used to come back unchanged from `debruijn` and `markov`, and
   `pseudo_reverse` ignored lowercase `k`/`r`. The decoy is made from the upper-cased
