@@ -88,7 +88,7 @@ Each entry is a `SequenceEntry`:
 | `identifier` | `str` | Token immediately after `>` (e.g. `sp|P12345|EX_HUMAN`) |
 | `sequence` | `str` | Concatenated sequence with whitespace stripped |
 | `prefix` | `str \| None` | Database prefix (`sp`, `tr`, `gi`, ...) when the id is pipe-delimited |
-| `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` ids; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`) |
+| `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` ids; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`); the third field of NCBI `pir\|\|ENTRY` and `prf\|\|NAME` (`S71500` from `pir\|\|S71500` or `gi\|7428543\|pir\|\|S71500`) |
 | `entry_name` | `str \| None` | Third pipe field on UniProt ids (e.g. `EX_HUMAN`), or the fifth on `gi\|N\|sp\|P12345\|EX_HUMAN`; none for PDB chains |
 | `description` | `str \| None` | Free text after the identifier |
 | `pname` | `str \| None` | Protein name (description text, minus `KEY=value` pairs) |

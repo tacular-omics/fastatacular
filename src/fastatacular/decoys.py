@@ -478,8 +478,20 @@ def _check_prefix(prefix: str) -> None:
 
 
 def _decoy_entry(entry: SequenceEntry, sequence: str, prefix: str) -> SequenceEntry:
+    """The decoy of ``entry``: its header fields with ``prefix`` on the identifier.
+
+    The target's header is parsed as is and only then prefixed, so the accession and
+    entry name stay the target's whatever the prefix. Re-parsing the prefixed header
+    would not: the parser knows only the built-in tags in front of ``pdb|`` and ``gi|``,
+    so ``XXX_pdb|1MBA|A`` would give the accession ``1MBA``.
+    """
     header, _ = _build_header_line(entry)
-    return _build_entry(_parse_header_line(">" + prefix + header[1:], 0), [sequence], 0)
+    parsed = _parse_header_line(header, 0)
+    parsed.identifier = prefix + parsed.identifier
+    parsed.raw_header = prefix + parsed.raw_header
+    if parsed.prefix is not None:
+        parsed.prefix = prefix + parsed.prefix
+    return _build_entry(parsed, [sequence], 0)
 
 
 def make_decoys(
@@ -497,9 +509,16 @@ def make_decoys(
     """Yield one decoy entry per target entry.
 
     The decoy's header is the target's header with ``prefix`` in front of the
-    identifier (``>sp|P12345|X_HUMAN ...`` becomes ``>DECOY_sp|P12345|X_HUMAN ...``),
-    re-parsed, so ``identifier`` and ``prefix`` carry the decoy prefix while
-    ``accession`` and the description fields are the target's.
+    identifier (``>sp|P12345|X_HUMAN ...`` becomes ``>DECOY_sp|P12345|X_HUMAN ...``).
+    ``identifier``, ``prefix`` and ``raw_header`` carry the decoy prefix, while
+    ``accession``, ``entry_name`` and the description fields are the target's, for
+    any prefix (``rev-pdb|1MBA|A`` keeps the accession ``1MBA_A``).
+
+    Reading a written decoy file back parses each header again: the parser
+    recognises ``DECOY_``, ``rev_`` and the other built-in tags in front of ``pdb|``
+    and ``gi|`` (and ``pir||``/``prf||``), but not a custom prefix there, so
+    ``XXX_pdb|1MBA|A`` reads back with the accession ``1MBA``. Use a built-in tag as
+    the prefix when the file is to be read back.
 
     Args:
         entries: Target entries, e.g. from :func:`~fastatacular.read_fasta` or a

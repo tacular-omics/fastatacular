@@ -206,6 +206,56 @@ def test_decoy_headers(proteome: list[SequenceEntry]) -> None:
     assert buf.getvalue().startswith(">rev_sp|P00000|PROT0_HUMAN Protein 0 OS=Homo sapiens OX=9606\n")
 
 
+_PREFIX_HEADERS = [
+    # (target header, accession, entry_name)
+    ("sp|P12345|X_HUMAN Prot OS=Homo sapiens GN=X", "P12345", "X_HUMAN"),
+    ("pdb|1MBA|A Chain A,  Myoglobin", "1MBA_A", None),
+    ("gi|229552|pdb|1MBA|A", "1MBA_A", None),
+    ("gi|1|ref|NP_1.1| some protein", "NP_1.1", None),
+    ("gi|1|sp|P12345|NAME_HUMAN", "P12345", "NAME_HUMAN"),
+    ("gi|7428543|pir||S71500 x", "S71500", None),
+    ("pir||S71500", "S71500", None),
+    ("prf||0601246A", "0601246A", None),
+    ("abc|X1|more|stuff", "X1", None),
+    ("myprot plain", None, None),
+]
+
+
+@pytest.mark.parametrize("prefix", ["XXX_", "rev-", "decoy.", "DECOY_", "rev_", "rev-1-"])
+@pytest.mark.parametrize(("header", "accession", "entry_name"), _PREFIX_HEADERS)
+def test_custom_prefix_keeps_accession(prefix: str, header: str, accession: str | None, entry_name: str | None) -> None:
+    """Any prefix keeps the target's accession and entry name; the header is prefix + target header."""
+    [target] = read_fasta(io.StringIO(f">{header}\nMKLVA\n"))
+    assert (target.accession, target.entry_name) == (accession, entry_name)
+    [decoy] = make_decoys([target], method="reverse", prefix=prefix)
+    assert (decoy.accession, decoy.entry_name) == (accession, entry_name)
+    assert decoy.identifier == prefix + target.identifier
+    assert decoy.prefix == (None if target.prefix is None else prefix + target.prefix)
+    assert decoy.raw_header == prefix + header
+    assert (decoy.description, decoy.pname, decoy.gname, decoy.os_name) == (
+        target.description,
+        target.pname,
+        target.gname,
+        target.os_name,
+    )
+    buf = io.StringIO()
+    write_fasta([decoy], buf)
+    assert buf.getvalue() == f">{prefix}{header}\nAVLKM\n"
+
+
+def test_custom_prefix_read_back_reparses_the_header() -> None:
+    """A file read back is parsed again; a custom prefix in front of pdb/gi is not a known tag."""
+    [target] = read_fasta(io.StringIO(">pdb|1MBA|A\nMKLVA\n"))
+    buf = io.StringIO()
+    write_fasta(make_decoys([target], method="reverse", prefix="XXX_"), buf)
+    [back] = read_fasta(io.StringIO(buf.getvalue()))
+    assert (back.accession, back.entry_name) == ("1MBA", "A")
+    buf = io.StringIO()
+    write_fasta(make_decoys([target], method="reverse", prefix="DECOY_"), buf)
+    [back] = read_fasta(io.StringIO(buf.getvalue()))
+    assert (back.accession, back.entry_name) == ("1MBA_A", None)
+
+
 def test_decoy_header_for_edited_entry_uses_current_fields() -> None:
     entry = SequenceEntry(identifier="x1", sequence="MKLV", gname="ABC")
     [decoy] = make_decoys([entry], method="reverse")

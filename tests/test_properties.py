@@ -482,7 +482,7 @@ def test_templated_headers_parse_exactly(case: tuple[str, dict[str, Any]], seque
     assert _write([dataclasses.replace(again, raw_header="", description=None)]) == rebuilt
 
 
-@given(templated_headers(), st.sampled_from(["DECOY_", "rev_", "REV_", "CON_", "rev-1-"]))
+@given(templated_headers(), st.sampled_from(["DECOY_", "rev_", "REV_", "CON_", "rev-1-", "XXX_", "rev-", "decoy."]))
 def test_decoy_headers_keep_accession_and_fields(case: tuple[str, dict[str, Any]], tag: str) -> None:
     """make_decoys puts the tag in front of the identifier; accession and description fields stay."""
     header, expected = case

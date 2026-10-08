@@ -92,7 +92,7 @@ _TAGS = r"(?i:(?:DECOY|REVERSE|REV|CONTAM|CON)(?:_|-[0-9]+-))*"
 # (NCBI's entry_chain form), so chains of one entry keep distinct accessions.
 _GI_ID = re.compile(
     rf"^(?P<prefix>{_TAGS}gi)"
-    r"\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]+)"
+    r"\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]*)"
     r"(?:\|(?P<name>[^|\s]*)(?:\|.*)?)?$"
 )
 
@@ -100,6 +100,11 @@ _GI_ID = re.compile(
 # for ``gi|N|pdb|ENTRY|CHAIN``, with no entry name. Checked before the UniProt rule, which
 # would otherwise take the chain for the entry name and give every chain the same accession.
 _PDB_ID = re.compile(rf"^(?P<prefix>{_TAGS}pdb)\|(?P<entry>[^|\s]+)\|(?P<chain>[^|\s]*)(?:\|.*)?$")
+
+# NCBI ``pir||ENTRY`` and ``prf||NAME`` identifiers: the middle field is empty by
+# definition, so the accession is the third field. ``gi|N|pir||ENTRY`` is handled by ``_GI_ID``.
+_EMPTY_MIDDLE_DBS = frozenset({"pir", "prf"})
+_EMPTY_MIDDLE_ID = re.compile(rf"^(?P<prefix>{_TAGS}(?:pir|prf))\|\|(?P<accession>[^|\s]+)(?:\|.*)?$")
 
 # NCBI-ish ``db|ID`` or ``db|ID|...`` identifier — accept the leading two fields.
 _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
@@ -112,15 +117,21 @@ def _split_identifier(identifier: str) -> tuple[str, str, str | None] | None:
     ``gi|4557757|ref|NP_000240.1|`` gives ``("gi", "NP_000240.1", None)`` (the GenInfo
     number stays in the identifier) and ``gi|1|sp|P12345|NAME_HUMAN`` gives
     ``("gi", "P12345", "NAME_HUMAN")``; ``pdb|1MBA|A`` and ``gi|229552|pdb|1MBA|A`` give
-    the accession ``1MBA_A``; other ``db|ID|...`` ids give their first two fields.
+    the accession ``1MBA_A``; ``pir||S71500``, ``prf||0601246A`` and
+    ``gi|7428543|pir||S71500`` give the third (or fifth) field; other ``db|ID|...`` ids
+    give their first two fields.
     """
     if m := _PDB_ID.match(identifier):
         chain = m["chain"]
         return m["prefix"], f"{m['entry']}_{chain}" if chain else m["entry"], None
     if m := _UNIPROT_ID.match(identifier):
         return m["prefix"], m["accession"], m["entry_name"]
-    if m := _GI_ID.match(identifier):
+    if m := _EMPTY_MIDDLE_ID.match(identifier):
+        return m["prefix"], m["accession"], None
+    if (m := _GI_ID.match(identifier)) and (m["accession"] or (m["db"].lower() in _EMPTY_MIDDLE_DBS and m["name"])):
         accession, name = m["accession"], m["name"] or None
+        if not accession:  # gi|N|pir||ENTRY: the entry is the fifth field
+            return m["prefix"], cast(str, name), None
         if m["db"].lower() == "pdb":
             return m["prefix"], f"{accession}_{name}" if name else accession, None
         return m["prefix"], accession, name

@@ -90,6 +90,18 @@ def test_ncbi_style_pipe_id():
         ("rev_pdb|1MBA|A", "rev_pdb", "1MBA_A", None),
         ("DECOY_CON_pdb|1MBA|B", "DECOY_CON_pdb", "1MBA_B", None),
         ("CONTAM_pdb|1MBA|A", "CONTAM_pdb", "1MBA_A", None),
+        # NCBI pir||ENTRY and prf||NAME: empty middle field, the accession is the third.
+        ("pir||S71500", "pir", "S71500", None),
+        ("prf||0601246A", "prf", "0601246A", None),
+        ("pir||S71500|", "pir", "S71500", None),
+        ("DECOY_pir||S71500", "DECOY_pir", "S71500", None),
+        ("rev_prf||0601246A", "rev_prf", "0601246A", None),
+        ("gi|7428543|pir||S71500", "gi", "S71500", None),
+        ("gi|7428543|prf||0601246A", "gi", "0601246A", None),
+        ("DECOY_gi|7428543|pir||S71500", "DECOY_gi", "S71500", None),
+        # An empty middle field in other dbs is not a known form: first two fields as before.
+        ("gi|5|ref||X", "gi", "5", None),
+        ("pir||", None, None, None),
         ("ref|NP_000240.1|", "ref", "NP_000240.1", None),
         ("sp|P12345|NAME_HUMAN", "sp", "P12345", "NAME_HUMAN"),
         ("tr|A0A024R161|A0A024R161_HUMAN", "tr", "A0A024R161", "A0A024R161_HUMAN"),
