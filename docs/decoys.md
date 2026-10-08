@@ -76,7 +76,7 @@ is_decoy(decoys[0])    # True
   (`DECOY_`, `XXX_`, `REV__`, `rev-`). A prefix glued to the database tag, such as `XXX`
   in `XXXpdb|1MBA|A`, cannot be told apart from a database name (`fungi|...`) and reads
   back as a generic `db|ID` id (accession `1MBA`). The prefix must be non-empty and
-  contain no whitespace.
+  contain no whitespace or `|`.
 - `k` (debruijn only): the k-mer length, default 2.
 - `model` (markov only): `"human"`, `"mouse"`, `"yeast"`, `"ecoli"`, a path to a saved
   model, or a `MarkovModel`.

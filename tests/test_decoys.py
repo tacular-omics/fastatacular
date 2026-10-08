@@ -332,6 +332,8 @@ def test_write_decoy_fasta_refuses_a_decoy_database(tmp_path: Path) -> None:
         ({"method": "flip"}, "Unknown decoy method"),
         ({"method": "reverse", "prefix": ""}, "prefix"),
         ({"method": "reverse", "prefix": "DE COY"}, "prefix"),
+        ({"method": "reverse", "prefix": "DECOY|"}, "prefix"),
+        ({"method": "reverse", "prefix": "a|b_"}, "prefix"),
         ({"method": "reverse", "keep_nterm": -1}, "keep_nterm"),
         ({"method": "reverse", "keep_cterm": 1.5}, "keep_cterm"),
         ({"method": "reverse", "keep_residues": 3}, "keep_residues"),

@@ -470,10 +470,16 @@ def make_decoy_sequence(
 
 
 def _check_prefix(prefix: str) -> None:
-    if not isinstance(prefix, str) or not prefix or any(c.isspace() for c in prefix) or prefix.startswith(">"):
+    if (
+        not isinstance(prefix, str)
+        or not prefix
+        or any(c.isspace() for c in prefix)
+        or prefix.startswith(">")
+        or "|" in prefix
+    ):
         raise DecoyError(
             f"Invalid decoy prefix {prefix!r}",
-            hint="Use a non-empty prefix without whitespace, such as 'DECOY_' or 'rev_'",
+            hint="Use a non-empty prefix without whitespace or '|', such as 'DECOY_' or 'rev_'",
         )
 
 
@@ -522,7 +528,8 @@ def make_decoys(
         entries: Target entries, e.g. from :func:`~fastatacular.read_fasta` or a
             :class:`~fastatacular.FastaReader`. Consumed lazily.
         method: One of :data:`METHODS`.
-        prefix: Put in front of each decoy identifier.
+        prefix: Put in front of each decoy identifier. Must be non-empty, without
+            whitespace or ``|``.
         seed: Makes the output reproducible: the same seed, options and sequence
             always give the same decoy, whatever else is in the database.
             ``None`` draws a fresh random seed.
