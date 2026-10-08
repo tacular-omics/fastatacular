@@ -8,8 +8,9 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
-from typing import IO, Any, Self
+from typing import IO, Any, Self, cast
 
+from fastatacular._compression import _KINDS, _NAMES, Compression, _check_compression, _is_text_handle
 from fastatacular._models import SequenceEntry
 from fastatacular.errors import FastaError, FastaParseError
 
@@ -281,12 +282,16 @@ def _decompressor(kind: str, raw: io.BufferedReader) -> io.BufferedIOBase:
 
 
 class _Prefixed(io.RawIOBase):
-    """Bytes already read from ``raw`` (``head``), then the rest of ``raw``."""
+    """Bytes already read from ``raw`` (``head``), then the rest of ``raw``.
 
-    def __init__(self, head: bytes, raw: io.BufferedReader) -> None:
+    ``close_raw=False`` leaves ``raw`` open on close (a caller's handle).
+    """
+
+    def __init__(self, head: bytes, raw: IO[bytes], *, close_raw: bool = True) -> None:
         super().__init__()
         self._head = head
         self._raw = raw
+        self._close_raw = close_raw
 
     def readable(self) -> bool:
         return True
@@ -297,11 +302,17 @@ class _Prefixed(io.RawIOBase):
             buffer[:n] = self._head[:n]
             self._head = self._head[n:]
             return n
-        return self._raw.readinto(buffer)
+        readinto = getattr(self._raw, "readinto", None)
+        if readinto is not None:
+            return readinto(buffer)
+        data = self._raw.read(len(buffer))
+        buffer[: len(data)] = data
+        return len(data)
 
     def close(self) -> None:
         try:
-            self._raw.close()
+            if self._close_raw:
+                self._raw.close()
         finally:
             super().close()
 
@@ -320,22 +331,64 @@ def _with_head(raw: io.BufferedReader, n: int = 6) -> tuple[io.BufferedReader, b
     return io.BufferedReader(_Prefixed(head, raw)), head
 
 
-def _open_path(source: str | Path) -> tuple[IO[str], bool]:
+def _read_kind(head: bytes, compression: Compression, name: object) -> str | None:
+    """The compression to read with: sniffed (``"infer"``), forced, or none (``None``).
+
+    A forced format must match the magic bytes, else :class:`FastaError`.
+    """
+    if compression is None:
+        return None
+    found = _kind(head)
+    if compression == "infer":
+        return found
+    kind = _KINDS[compression]
+    if found != kind:
+        what = "plain text (no compression magic bytes)" if found is None else f"{_NAMES[found]}-compressed"
+        err = FastaError(f"compression={compression!r} but {name} looks {what}")
+        err.add_note("hint: pass compression='infer' to detect the format from the magic bytes")
+        raise err
+    return kind
+
+
+def _open_path(source: str | Path, compression: Compression = "infer") -> tuple[IO[str], bool]:
     """Open a FASTA path as UTF-8 text, decompressing gzip/bzip2/xz input.
 
     The file is opened once and its first bytes are peeked, not read, so pipes,
     FIFOs, ``/dev/stdin`` and process substitution work. Returns the handle and
-    whether it is compressed.
+    whether it is compressed. ``compression`` is as for :func:`read_fasta`.
     """
     raw = open(source, "rb")  # noqa: SIM115 - closed by the returned handle
     try:
         raw, head = _with_head(raw)
-        kind = _kind(head)
+        kind = _read_kind(head, compression, source)
         if kind is None:
             return io.TextIOWrapper(raw, encoding="utf-8-sig"), False
         return _TextOverRaw(_decompressor(kind, raw), raw), True
     except BaseException:
         raw.close()
+        raise
+
+
+def _open_stream(handle: IO[Any], compression: Compression) -> IO[str] | None:
+    """Wrap a caller's binary handle in a decompressing text reader for an explicit ``compression``.
+
+    Returns ``None`` when the handle is used as is (``"infer"`` or ``None``: it must be a
+    text handle, as before). Closing the returned reader leaves ``handle`` open.
+    """
+    if compression is None or compression == "infer":
+        return None
+    if _is_text_handle(handle):
+        err = FastaError(f"compression={compression!r} needs a binary handle, got a text-mode one")
+        err.add_note("hint: open the file with mode 'rb', or pass a path")
+        raise err
+    head = handle.read(6)
+    kind = _read_kind(head, compression, "the input")
+    assert kind is not None
+    buffered = io.BufferedReader(_Prefixed(head, handle, close_raw=False))
+    try:
+        return io.TextIOWrapper(_decompressor(kind, buffered), encoding="utf-8-sig")  # ty: ignore[invalid-argument-type]
+    except BaseException:
+        buffered.close()
         raise
 
 
@@ -493,21 +546,26 @@ class FastaReader:
     a second ``for`` loop yields nothing. Open a new reader (or use
     ``read_fasta``) to read the file again.
 
-    A path may be plain or gzip/bzip2/xz compressed, as for ``read_fasta``.
+    A path may be plain or gzip/bzip2/xz compressed; ``compression`` is as for
+    ``read_fasta``.
     """
 
-    def __init__(self, source: str | Path | IO[str]) -> None:
+    def __init__(self, source: str | Path | IO[str] | IO[bytes], *, compression: Compression = "infer") -> None:
         self._source = source
+        self._compression = _check_compression(compression)
         self._fh: IO[str] | None = None
         self._owns_fh = False
         self._compressed = False
 
     def __enter__(self) -> Self:
         if isinstance(self._source, (str, Path)):
-            self._fh, self._compressed = _open_path(self._source)
+            self._fh, self._compressed = _open_path(self._source, self._compression)
+            self._owns_fh = True
+        elif (wrapped := _open_stream(self._source, self._compression)) is not None:
+            self._fh, self._compressed = wrapped, True
             self._owns_fh = True
         else:
-            self._fh = self._source
+            self._fh = cast("IO[str]", self._source)
             self._owns_fh = False
             self._compressed = False
         return self
@@ -536,17 +594,33 @@ class FastaReader:
         return _iter_entries(self._fh)
 
 
-def read_fasta(source: str | Path | IO[str]) -> list[SequenceEntry]:
+def read_fasta(source: str | Path | IO[str] | IO[bytes], *, compression: Compression = "infer") -> list[SequenceEntry]:
     """Read an entire FASTA file into a list of ``SequenceEntry`` objects.
 
-    A path may be plain or gzip/bzip2/xz compressed (detected from the magic
-    bytes; a plain file with a ``.gz`` name is read as plain text).
+    ``source`` is a path or an open file object.
+
+    Args:
+        compression: ``"infer"`` (default) detects gzip, bzip2 or xz from a path's
+            magic bytes (a plain file with a ``.gz`` name is read as plain text) and
+            reads a handle as text. ``"gzip"``, ``"bz2"`` or ``"xz"`` forces that
+            format: a path or **binary** handle whose bytes are not in it raises
+            :class:`FastaError`, and so does a text handle. ``None`` reads plain text
+            even if the bytes look compressed.
+
+    Raises:
+        FastaError: An unknown ``compression``, or input that does not match an
+            explicit one.
+        FastaParseError: Malformed or undecodable input.
     """
+    compression = _check_compression(compression)
     if isinstance(source, (str, Path)):
-        fh, compressed = _open_path(source)
+        fh, compressed = _open_path(source, compression)
         with fh:
             return list(_iter_path_entries(fh, compressed=compressed))
-    return list(_iter_entries(source))
+    if (wrapped := _open_stream(source, compression)) is not None:
+        with wrapped:
+            return list(_iter_path_entries(wrapped, compressed=True))
+    return list(_iter_entries(source))  # ty: ignore[invalid-argument-type]
 
 
-__all__ = ["FastaReader", "read_fasta"]
+__all__ = ["Compression", "FastaReader", "read_fasta"]

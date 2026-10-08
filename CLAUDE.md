@@ -80,9 +80,11 @@ written if any fails) -> header is
 
 Exported from `fastatacular` (`__all__`):
 
-- `read_fasta(source)` -> `list[SequenceEntry]`: read a whole file (path or text handle).
+- `read_fasta(source, *, compression="infer")` -> `list[SequenceEntry]`: read a whole file (path or handle).
 - `FastaReader(source)`: lazy iterator; must be used as `with FastaReader(p) as r: for e in r: ...`.
-- `write_fasta(entries, dest, *, line_width=60)`: write entries to a path or text handle.
+- `write_fasta(entries, dest, *, line_width=60, compression="infer")`: write entries to a path or handle.
+- `Compression`: `Literal["infer", "gzip", "bz2", "xz"] | None`, the `compression=` keyword of every
+  reader/writer (`_compression.py`); must stay identical to pefftacular's.
 - `SequenceEntry`: frozen dataclass (`identifier`, `sequence`, `prefix`, `accession`,
   `entry_name`, `description`, `pname`, `gname`, `os_name`, `ncbi_tax_id`, `pe`, `sv`,
   `extra`, `raw_header`).

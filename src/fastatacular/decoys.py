@@ -49,9 +49,10 @@ from importlib import resources
 from pathlib import Path
 from typing import IO, Literal, get_args
 
+from fastatacular._compression import Compression, _check_compression
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import _build_entry, _parse_header_line, read_fasta
-from fastatacular._writer import _SEQ_LINE_WIDTH, _build_header_line, write_fasta
+from fastatacular._writer import _SEQ_LINE_WIDTH, _build_header_line, _check_dest, write_fasta
 from fastatacular.errors import DecoyError
 
 DecoyMethod = Literal["reverse", "pseudo_reverse", "shuffle", "debruijn", "markov"]
@@ -175,6 +176,7 @@ def train_markov_model(
     *,
     order: int = 2,
     metadata: dict[str, object] | None = None,
+    compression: Compression = "infer",
 ) -> MarkovModel:
     """Count (k+1)-mers in one or more FASTA files and return a :class:`MarkovModel`.
 
@@ -187,18 +189,21 @@ def train_markov_model(
         order: Context length, 0 to 4. Order 2 (the shipped models) needs about
             8,000 counts; each order multiplies that by 20.
         metadata: Extra provenance to store with the model (source, date, license).
+        compression: How every path is decompressed, as for :func:`read_fasta`.
 
     Raises:
         DecoyError: For a bad ``order`` or input without any standard residue.
+        FastaError: An unknown ``compression``, or a file that does not match it.
     """
     if not isinstance(order, int) or isinstance(order, bool) or not 0 <= order <= _MAX_ORDER:
         raise DecoyError(f"order must be an int from 0 to {_MAX_ORDER}, got {order!r}")
+    compression = _check_compression(compression)
     paths = _as_paths(fasta_paths)
     split = re.compile(f"[^{AMINO_ACIDS}]+")
     counters = [Counter[str]() for _ in range(order + 1)]
     entries = 0
     for path in paths:
-        for entry in read_fasta(path):
+        for entry in read_fasta(path, compression=compression):
             entries += 1
             for run in split.split(entry.sequence.upper()):
                 for o, counter in enumerate(counters):
@@ -563,7 +568,7 @@ def is_decoy(entry: SequenceEntry | str, *, prefix: str = DEFAULT_PREFIX) -> boo
 
 def write_decoy_fasta(
     src: str | Path | IO[str],
-    dst: str | Path | IO[str],
+    dst: str | Path | IO[str] | IO[bytes],
     *,
     method: DecoyMethod,
     concatenate: bool = True,
@@ -575,18 +580,23 @@ def write_decoy_fasta(
     k: int = 2,
     model: str | Path | MarkovModel = "human",
     line_width: int = _SEQ_LINE_WIDTH,
+    compression: Compression = "infer",
 ) -> int:
     """Read a target FASTA and write its decoys, by default after the targets.
 
     With ``concatenate=True`` the output is every target entry (unchanged, headers
     verbatim) followed by every decoy; with ``False`` only the decoys. Decoy options
     are those of :func:`make_decoys`. Returns the number of decoys written.
+    ``compression`` applies to ``dst`` as in :func:`write_fasta`; ``src`` is read
+    as by :func:`read_fasta` (compression detected from the magic bytes).
 
     Raises:
         DecoyError: For invalid options, or when ``src`` already holds entries
             starting with ``prefix`` (it looks like a decoy database already).
         FastaParseError: For unreadable ``src``.
     """
+    compression = _check_compression(compression)
+    _check_dest(dst, compression)
     targets = read_fasta(src)
     already = next((e.identifier for e in targets if is_decoy(e, prefix=prefix)), None)
     if already is not None:
@@ -607,7 +617,9 @@ def write_decoy_fasta(
             model=model,
         )
     )
-    write_fasta(itertools.chain(targets, decoys) if concatenate else decoys, dst, line_width=line_width)
+    write_fasta(
+        itertools.chain(targets, decoys) if concatenate else decoys, dst, line_width=line_width, compression=compression
+    )
     return len(decoys)
 
 

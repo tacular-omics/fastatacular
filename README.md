@@ -63,6 +63,18 @@ bytes, not the file name. Pipes, FIFOs and `/dev/stdin` work too:
 entries = read_fasta("uniprot_sprot.fasta.gz")
 ```
 
+Every reader and writer takes a pandas-style `compression=` keyword (type alias
+`fastatacular.Compression`): `"infer"` (default), `"gzip"`, `"bz2"`, `"xz"` or `None`.
+On read, `"infer"` sniffs the magic bytes, an explicit format is forced (input in another
+format raises `FastaError`) and `None` reads plain text. An open handle needs explicit
+compression and binary mode to be decompressed:
+
+```python
+entries = read_fasta("download.bin", compression="gzip")
+with open("proteins.fasta.xz", "rb") as fh:
+    entries = read_fasta(fh, compression="xz")
+```
+
 A PEFF file also reads as plain FASTA: its `#` file header lines are skipped and each
 entry keeps its identifier, sequence and raw description. Use
 [pefftacular](https://github.com/tacular-omics/pefftacular) to parse the PEFF annotations.
@@ -132,7 +144,18 @@ entries = [
 write_fasta(entries, "output.fasta")
 ```
 
-`dest` accepts a path string, a `pathlib.Path`, or a text-mode file object. A path ending in `.gz`, `.bz2` or `.xz` is written gzip, bzip2 or xz compressed.
+`dest` accepts a path string, a `pathlib.Path`, or a file object. With the default
+`compression="infer"`, a path ending in `.gz`, `.bz2` or `.xz` (any case) is written gzip,
+bzip2 or xz compressed and anything else, including a handle, is plain text.
+`compression="gzip"`, `"bz2"` or `"xz"` forces that format whatever the suffix (a handle
+must then be opened `"wb"`; it is left open), and `compression=None` always writes plain
+text. gzip output has mtime 0, so the same entries give the same bytes.
+
+```python
+write_fasta(entries, "output.fa", compression="xz")
+with open("output.fasta.gz", "wb") as fh:
+    write_fasta(entries, fh, compression="gzip")
+```
 
 Sequence lines wrap at 60 characters by default. Override with `line_width=` (pass `0` to disable wrapping):
 
@@ -194,6 +217,8 @@ by_acc["P31946"]
 - The file must be a regular, uncompressed file. A FIFO, pipe or directory raises
   `FastaError`: save the input to a file first, or read it once with `FastaReader`. gzip (including bgzip), bzip2 and xz raise `FastaError`:
   decompress first (`gunzip -k human.fasta.gz`). bgzip/`.gzi` is not supported.
+  `compression="gzip"`/`"bz2"`/`"xz"` raises `FastaError`; `compression=None` skips the
+  magic-byte check.
 - `.fai` caveats: the name column is the first header word (mapped to the accession on
   load with `key="accession"`). Like samtools, `write_fai()` needs every sequence line of an
   entry but the last to have the same length, and no comment or blank lines inside a

@@ -6,9 +6,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import IO
 
+from fastatacular._compression import _KINDS, Compression, _check_compression, _is_text_handle
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import _MODULES, _parse_header_line, _ParsedHeader, _split_kv
-from fastatacular.errors import FastaParseError, FastaWriteError
+from fastatacular.errors import FastaError, FastaParseError, FastaWriteError
 
 _SEQ_LINE_WIDTH = 60
 
@@ -208,62 +209,119 @@ def _write_prepared(items: list[tuple[SequenceEntry, str, int]], out: IO[str]) -
 _SUFFIX_KINDS = {".gz": "gz", ".bz2": "bz2", ".xz": "xz"}
 
 
-def _open_for_write(path: Path) -> IO[str]:
-    """Open ``path`` for UTF-8 text output, compressed by its suffix (``.gz``, ``.bz2``, ``.xz``)."""
-    kind = _SUFFIX_KINDS.get(path.suffix.lower())
-    if kind is None:
-        return path.open("w", encoding="utf-8")
+def _write_kind(path: Path | None, compression: Compression) -> str | None:
+    """The compression to write with: by suffix (``"infer"``; none for a handle), forced, or none."""
+    if compression is None:
+        return None
+    if compression == "infer":
+        return None if path is None else _SUFFIX_KINDS.get(path.suffix.lower())
+    return _KINDS[compression]
+
+
+def _compressor(kind: str, target: Path | IO[bytes], name: object) -> IO[str]:
+    """A UTF-8 text writer compressing ``kind`` into a path or a binary handle.
+
+    Closing it finishes the compressed stream; a handle ``target`` is left open.
+    """
+    import io
+
     try:
         if kind == "gz":
             import gzip
-            import io
 
             # mtime=0 so the same entries always give the same bytes (gzip.open stamps the
             # current time into the header).
-            return io.TextIOWrapper(gzip.GzipFile(path, mode="wb", mtime=0), encoding="utf-8")
-        if kind == "bz2":
+            if isinstance(target, Path):
+                binary = gzip.GzipFile(target, mode="wb", mtime=0)
+            else:
+                binary = gzip.GzipFile(fileobj=target, mode="wb", mtime=0)
+        elif kind == "bz2":
             import bz2
 
-            return bz2.open(path, "wt", encoding="utf-8")
-        import lzma
+            binary = bz2.BZ2File(target, mode="wb")
+        else:
+            import lzma
 
-        return lzma.open(path, "wt", encoding="utf-8")
+            binary = lzma.LZMAFile(target, mode="wb")
     except ImportError as e:
         raise FastaWriteError(
-            f"Cannot write {path}: this Python has no {_MODULES[kind]} module",
-            hint=f"Write an uncompressed file, or use a Python built with {_MODULES[kind]} support",
+            f"Cannot write {name}: this Python has no {_MODULES[kind]} module",
+            hint=f"Write uncompressed output, or use a Python built with {_MODULES[kind]} support",
         ) from e
+    return io.TextIOWrapper(binary, encoding="utf-8")
+
+
+def _open_for_write(path: Path, compression: Compression = "infer") -> IO[str]:
+    """Open ``path`` for UTF-8 text output, compressed per ``compression`` (see :func:`write_fasta`)."""
+    kind = _write_kind(path, compression)
+    if kind is None:
+        return path.open("w", encoding="utf-8")
+    return _compressor(kind, path, path)
+
+
+def _write_items(
+    items: list[tuple[SequenceEntry, str, int]], dest: str | Path | IO[str] | IO[bytes], compression: Compression
+) -> None:
+    if isinstance(dest, (str, Path)):
+        with _open_for_write(Path(dest), compression) as fh:
+            _write_prepared(items, fh)
+        return
+    kind = _write_kind(None, compression)
+    if kind is None:
+        _write_prepared(items, dest)  # ty: ignore[invalid-argument-type]
+        return
+    with _compressor(kind, dest, "the handle") as fh:  # ty: ignore[invalid-argument-type]
+        _write_prepared(items, fh)
+
+
+def _check_dest(dest: object, compression: Compression) -> None:
+    """Reject a text handle for compressed output before anything is written."""
+    if isinstance(dest, (str, Path)) or _write_kind(None, compression) is None:
+        return
+    if _is_text_handle(dest):
+        err = FastaError(f"compression={compression!r} needs a binary handle, got a text-mode one")
+        err.add_note("hint: open the file with mode 'wb', or pass a path")
+        raise err
 
 
 def write_fasta(
     entries: Iterable[SequenceEntry],
-    dest: str | Path | IO[str],
+    dest: str | Path | IO[str] | IO[bytes],
     *,
     line_width: int = _SEQ_LINE_WIDTH,
+    compression: Compression = "infer",
 ) -> None:
     """Write a sequence of ``SequenceEntry`` objects to FASTA.
 
-    ``dest`` may be a path or an already-opened text-mode file object. A path
-    ending in ``.gz``, ``.bz2`` or ``.xz`` is written gzip, bzip2 or xz
-    compressed (the formats :func:`read_fasta` reads).
+    ``dest`` may be a path or an already-opened file object.
     ``line_width`` controls sequence wrapping; pass ``0`` (or any value ``<= 0``)
     to emit each sequence on a single line.
 
     Every entry is validated before anything is written: if one is unwritable,
     ``FastaWriteError`` is raised (its ``index`` names the entry), a path
     ``dest`` is not created or truncated, and nothing is written to a handle.
+
+    Args:
+        compression: ``"infer"`` (default) compresses a path ending in ``.gz``,
+            ``.bz2`` or ``.xz`` (any case) with gzip, bzip2 or xz and writes plain
+            text otherwise and to a handle. ``"gzip"``, ``"bz2"`` or ``"xz"`` forces
+            that format whatever the suffix; a handle must then be binary
+            (``"wb"``) and is left open. ``None`` always writes plain text. gzip
+            output has mtime 0, so the same entries give the same bytes.
+
+    Raises:
+        FastaError: An unknown ``compression``, or a text handle with an explicit one.
+        FastaWriteError: An entry that cannot be written.
     """
+    compression = _check_compression(compression)
+    _check_dest(dest, compression)
     if not isinstance(line_width, int) or isinstance(line_width, bool):
         raise FastaWriteError(
             f"line_width must be an int, got {line_width!r}",
             hint="Pass an int; 0 or less writes each sequence on one line",
         )
     items = [(entry, *_prepare_entry(entry, i, line_width)) for i, entry in enumerate(entries)]
-    if isinstance(dest, (str, Path)):
-        with _open_for_write(Path(dest)) as fh:
-            _write_prepared(items, fh)
-    else:
-        _write_prepared(items, dest)
+    _write_items(items, dest, compression)
 
 
 __all__ = ["write_fasta"]
