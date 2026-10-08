@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import io
 import json
+import math
 import re
 from collections import Counter
 from pathlib import Path
@@ -424,3 +425,68 @@ def test_make_decoys_lowercase_entries(method: str) -> None:
     lo = [e.sequence for e in make_decoys(lower, method=method, seed=9)]  # type: ignore[arg-type]
     assert lo == [s.lower() for s in up]
     assert all(d != t.sequence for d, t in zip(lo, lower, strict=True))
+
+
+# ---------------------------------------------------------------------------
+# Invariants on random mixed-case sequences
+# ---------------------------------------------------------------------------
+
+_mixed = st.text("ACDEFGHIKLMNPQRSTVWYacdefghiklmnpqrstvwyKRPkrp", min_size=0, max_size=60)
+
+
+def _free_runs(upper: str, keep: str) -> list[str]:
+    """The stretches between kept residues, in which the rearranging methods move residues."""
+    return re.split(f"[{re.escape(keep)}]", upper) if keep else [upper]
+
+
+def _arrangements(run: str) -> int:
+    """Number of distinct permutations of ``run``."""
+    count = math.factorial(len(run))
+    for c in Counter(run).values():
+        count //= math.factorial(c)
+    return count
+
+
+@given(
+    seq=_mixed,
+    method=st.sampled_from(METHODS),
+    keep=st.sampled_from([None, "", "KR", "kr", "KRP", "Rp"]),
+    seed=st.integers(0, 2**32) | st.text(max_size=5),
+)
+def test_decoy_invariants_mixed_case(seq: str, method: str, keep: str | None, seed: int | str) -> None:
+    kw = {"method": method, "seed": seed, "keep_residues": keep}
+    decoy = make_decoy_sequence(seq, **kw)  # type: ignore[arg-type]
+    # Deterministic with a seed.
+    assert make_decoy_sequence(seq, **kw) == decoy  # type: ignore[arg-type]
+    # Length and the case of every position are kept.
+    assert len(decoy) == len(seq)
+    assert [c.islower() for c in decoy] == [c.islower() for c in seq]
+    upper, dupper = seq.upper(), decoy.upper()
+    kept = (keep if keep is not None else ("KR" if method == "pseudo_reverse" else "")).upper()
+    # Cleavage sites stay exactly where they were, and are never introduced elsewhere.
+    for c, d in zip(upper, dupper, strict=True):
+        assert (d == c) if c in kept else (d not in kept)
+    # The decoy is the decoy of the upper-case sequence, with the target's case.
+    assert make_decoy_sequence(upper, **kw) == dupper  # type: ignore[arg-type]
+    runs = _free_runs(upper, kept)
+    if method in ("reverse", "pseudo_reverse", "shuffle"):
+        assert Counter(dupper) == Counter(upper)  # composition kept
+    if method in ("reverse", "pseudo_reverse"):
+        # Equal to the target exactly when every free stretch is a palindrome.
+        assert (decoy == seq) == all(run == run[::-1] for run in runs)
+    elif method == "shuffle":
+        if math.prod(_arrangements(run) for run in runs) >= 50:
+            assert decoy != seq  # 10 retries: chance of a repeat below 1e-16
+    elif method == "markov" and sum(c not in kept for c in upper) >= 6:
+        assert decoy != seq
+
+
+@given(st.lists(_mixed.filter(bool), min_size=1, max_size=6), st.sampled_from(METHODS), st.integers(0, 99))
+def test_make_decoys_matches_make_decoy_sequence(seqs: list[str], method: str, seed: int) -> None:
+    """Seeded make_decoys is reproducible, and for streaming methods equals make_decoy_sequence per entry."""
+    targets = [SequenceEntry(identifier=f"sp|P{i:05d}|X_HUMAN", sequence=s) for i, s in enumerate(seqs)]
+    a = [e.sequence for e in make_decoys(targets, method=method, seed=seed)]  # type: ignore[arg-type]
+    assert a == [e.sequence for e in make_decoys(targets, method=method, seed=seed)]  # type: ignore[arg-type]
+    assert [len(s) for s in a] == [len(s) for s in seqs]
+    if method != "debruijn":
+        assert a == [make_decoy_sequence(s, method=method, seed=seed) for s in seqs]  # type: ignore[arg-type]
