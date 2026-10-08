@@ -8,6 +8,18 @@ All notable changes to this project will be documented in this file.
 
 - FASTA Toolkit web app (`site/`, deployed to https://tacular-omics.github.io/fastatacular/ by `.github/workflows/pages.yml`): decoys with every method, decoy QC with peptacular, clean-up and merge, stats, and FASTA/CSV/PEFF export, all in the browser with Pyodide. `scripts/site_smoke.py` tests it headless. Not part of the Python package.
 
+### Fixed
+
+- Decoys: residues and `keep_residues` now match case-insensitively in every method.
+  A lowercase target used to come back unchanged from `debruijn` and `markov`, and
+  `pseudo_reverse` ignored lowercase `k`/`r`. The decoy is made from the upper-cased
+  target and keeps the target's case at each position.
+- Legacy NCBI `gi|NUMBER|db|ACCESSION|` identifiers (`gi|4557757|ref|NP_000240.1|`) now
+  give `accession="NP_000240.1"` instead of the GenInfo number, in `SequenceEntry` and
+  `FastaIndex(key="accession")`. The GenInfo number stays in `identifier`.
+- `write_fasta` (and `write_decoy_fasta`) to a path ending in `.gz`, `.bz2` or `.xz` now
+  writes gzip, bzip2 or xz compressed output; it used to write plain text.
+
 ### Changed
 
 - The source distribution now contains only the source, tests and the README, changelog, citation and license files: no paper, docs, lockfile or repository tooling.

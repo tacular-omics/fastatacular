@@ -228,11 +228,12 @@ UniProt `db|ACCESSION|ENTRY_NAME`:
     >>> (x.prefix, x.accession, x.entry_name, x.pname)
     ('sp', 'P69905', 'HBA_HUMAN', 'Hemoglobin subunit alpha')
 
-NCBI-style `db|ID|...` (only prefix and accession are taken):
+NCBI-style `db|ID|...` (only prefix and accession are taken; for legacy
+`gi|NUMBER|db|ACCESSION|` ids the accession is the fourth field):
 
     >>> x = one(">gi|12345|ref|NP_000001.1| some protein\nAAA\n")
     >>> (x.identifier, x.prefix, x.accession, x.entry_name)
-    ('gi|12345|ref|NP_000001.1|', 'gi', '12345', None)
+    ('gi|12345|ref|NP_000001.1|', 'gi', 'NP_000001.1', None)
 
 Plain identifier, no description:
 
@@ -315,6 +316,7 @@ To a path:
 
     write_fasta(entries, "out.fasta")            # overwrites
     write_fasta(entries, Path("out.fasta"))
+    write_fasta(entries, "out.fasta.gz")         # .gz/.bz2/.xz: compressed by suffix
 
 ### 6.2 Line width
 

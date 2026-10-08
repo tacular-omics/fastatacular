@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import io
+from pathlib import Path
 
 import pytest
 
@@ -235,3 +236,18 @@ def test_bad_line_width_raises_write_error(width):
         _write_str([SequenceEntry(identifier="x", sequence="ACDE")], line_width=width)
     with pytest.raises(FastaWriteError):
         _write_str([], line_width=width)
+
+
+_MAGIC = {".gz": b"\x1f\x8b", ".bz2": b"BZh", ".xz": b"\xfd7zXZ\x00", ".GZ": b"\x1f\x8b"}
+
+
+@pytest.mark.parametrize("suffix", list(_MAGIC))
+def test_compressed_path_round_trip(tmp_path: Path, suffix: str) -> None:
+    entries = read_fasta(io.StringIO(">sp|P12345|EX_HUMAN Example OS=Homo sapiens\nMKTIIALSYI\n>b\nPEPTIDE\n"))
+    path = tmp_path / f"x.fasta{suffix}"
+    write_fasta(entries, path)
+    assert path.read_bytes().startswith(_MAGIC[suffix])
+    assert read_fasta(path) == entries
+    plain = tmp_path / "x.fasta"
+    write_fasta(entries, plain)
+    assert plain.read_bytes().startswith(b">")

@@ -70,8 +70,29 @@ def _split_kv(text: str) -> tuple[int | None, list[tuple[str, str]]]:
 # ``Reverse_sp|...``, ``rev_sp|...`` and ``DECOY-0-sp|...`` keep their accession.
 _UNIPROT_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|]+)\|(?P<entry_name>[^|\s]+)$")
 
+# Legacy NCBI ``gi|NUMBER|db|ACCESSION|...`` identifier (``gi|4557757|ref|NP_000240.1|``):
+# the accession is the fourth field, not the GenInfo number. As for UniProt ids, the
+# prefix may carry a decoy/contaminant tag (``DECOY_gi|...``).
+_GI_ID = re.compile(r"^(?P<prefix>[^|\s]*gi)\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
+
 # NCBI-ish ``db|ID`` or ``db|ID|...`` identifier — accept the leading two fields.
 _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
+
+
+def _split_identifier(identifier: str) -> tuple[str, str, str | None] | None:
+    """Return ``(prefix, accession, entry_name)`` of a pipe-delimited identifier, or None.
+
+    ``sp|P12345|NAME_HUMAN`` gives ``("sp", "P12345", "NAME_HUMAN")``;
+    ``gi|4557757|ref|NP_000240.1|`` gives ``("gi", "NP_000240.1", None)`` (the GenInfo
+    number stays in the identifier); other ``db|ID|...`` ids give their first two fields.
+    """
+    if m := _UNIPROT_ID.match(identifier):
+        return m["prefix"], m["accession"], m["entry_name"]
+    if m := _GI_ID.match(identifier):
+        return m["prefix"], m["accession"], None
+    if m := _PIPE_ID.match(identifier):
+        return m["prefix"], m["accession"], None
+    return None
 
 
 @dataclass(slots=True)
@@ -112,13 +133,8 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
 
     header = _ParsedHeader(identifier=identifier, raw_header=raw)
 
-    if m := _UNIPROT_ID.match(identifier):
-        header.prefix = m["prefix"]
-        header.accession = m["accession"]
-        header.entry_name = m["entry_name"]
-    elif m := _PIPE_ID.match(identifier):
-        header.prefix = m["prefix"]
-        header.accession = m["accession"]
+    if (parts := _split_identifier(identifier)) is not None:
+        header.prefix, header.accession, header.entry_name = parts
 
     if not rest:
         return header

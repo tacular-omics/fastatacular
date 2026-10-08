@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import IO
 
 from fastatacular._models import SequenceEntry
-from fastatacular._parser import _parse_header_line, _ParsedHeader, _split_kv
+from fastatacular._parser import _MODULES, _parse_header_line, _ParsedHeader, _split_kv
 from fastatacular.errors import FastaParseError, FastaWriteError
 
 _SEQ_LINE_WIDTH = 60
@@ -205,6 +205,33 @@ def _write_prepared(items: list[tuple[SequenceEntry, str, int]], out: IO[str]) -
             out.write(seq[i : i + step] + "\n")
 
 
+_SUFFIX_KINDS = {".gz": "gz", ".bz2": "bz2", ".xz": "xz"}
+
+
+def _open_for_write(path: Path) -> IO[str]:
+    """Open ``path`` for UTF-8 text output, compressed by its suffix (``.gz``, ``.bz2``, ``.xz``)."""
+    kind = _SUFFIX_KINDS.get(path.suffix.lower())
+    if kind is None:
+        return path.open("w", encoding="utf-8")
+    try:
+        if kind == "gz":
+            import gzip
+
+            return gzip.open(path, "wt", encoding="utf-8")
+        if kind == "bz2":
+            import bz2
+
+            return bz2.open(path, "wt", encoding="utf-8")
+        import lzma
+
+        return lzma.open(path, "wt", encoding="utf-8")
+    except ImportError as e:
+        raise FastaWriteError(
+            f"Cannot write {path}: this Python has no {_MODULES[kind]} module",
+            hint=f"Write an uncompressed file, or use a Python built with {_MODULES[kind]} support",
+        ) from e
+
+
 def write_fasta(
     entries: Iterable[SequenceEntry],
     dest: str | Path | IO[str],
@@ -213,7 +240,9 @@ def write_fasta(
 ) -> None:
     """Write a sequence of ``SequenceEntry`` objects to FASTA.
 
-    ``dest`` may be a path or an already-opened text-mode file object.
+    ``dest`` may be a path or an already-opened text-mode file object. A path
+    ending in ``.gz``, ``.bz2`` or ``.xz`` is written gzip, bzip2 or xz
+    compressed (the formats :func:`read_fasta` reads).
     ``line_width`` controls sequence wrapping; pass ``0`` (or any value ``<= 0``)
     to emit each sequence on a single line.
 
@@ -228,7 +257,7 @@ def write_fasta(
         )
     items = [(entry, *_prepare_entry(entry, i, line_width)) for i, entry in enumerate(entries)]
     if isinstance(dest, (str, Path)):
-        with Path(dest).open("w", encoding="utf-8") as fh:
+        with _open_for_write(Path(dest)) as fh:
             _write_prepared(items, fh)
     else:
         _write_prepared(items, dest)

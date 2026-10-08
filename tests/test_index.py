@@ -401,3 +401,17 @@ def test_undecodable_preamble(tmp_path: Path) -> None:
     p.write_bytes(b"; \xff\n>a\nMK\n")
     with pytest.raises(FastaParseError, match="Cannot decode the start"):
         FastaIndex(p)
+
+
+def test_accession_key_ncbi_gi(tmp_path: Path) -> None:
+    path = tmp_path / "ncbi.fasta"
+    path.write_text(
+        ">gi|4557757|ref|NP_000240.1| MLH1\nMMM\n"
+        ">gi|2914639|gb|AAC04434.1| x\nAAA\n"
+        ">sp|P12345|EX_HUMAN y\nCCC\n"
+        ">tr|Q00001|Q00001_MOUSE z\nDDD\n"
+    )
+    index = FastaIndex(path, key="accession")
+    assert list(index) == ["NP_000240.1", "AAC04434.1", "P12345", "Q00001"]
+    for key in index:
+        assert index[key].accession == key

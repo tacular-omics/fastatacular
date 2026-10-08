@@ -254,14 +254,15 @@ SPEC = [
 
 # Legacy NCBI ``db|id|...`` deflines (NCBI C++ Toolkit book, "FASTA identifiers":
 # https://ncbi.github.io/cxx-toolkit/pages/ch_demo#ch_demo.T5) and generic headers.
-# fastatacular keeps the first two pipe fields as prefix/accession.
+# fastatacular keeps the first two pipe fields as prefix/accession, except for
+# ``gi|NUMBER|db|ACCESSION|`` ids, whose accession is the fourth field.
 OTHER = [
     (
         ">gi|4557757|ref|NP_000240.1| MutL protein homolog 1 [Homo sapiens]",
         _exp(
             identifier="gi|4557757|ref|NP_000240.1|",
             prefix="gi",
-            accession="4557757",
+            accession="NP_000240.1",
             pname="MutL protein homolog 1 [Homo sapiens]",
         ),
     ),
