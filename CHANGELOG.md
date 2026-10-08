@@ -6,10 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `compression=` keyword on `read_fasta`, `FastaReader`, `write_fasta`, `write_decoy_fasta`
+  (output), `train_markov_model` and `FastaIndex`/`FastaIndex.from_fai`, with the public
+  type alias `Compression = Literal["infer", "gzip", "bz2", "xz"] | None` (same as
+  pefftacular). `"infer"` (default) keeps the old behaviour: magic bytes on read, path
+  suffix on write. An explicit format overrides the suffix on write and is enforced on
+  read (other input raises `FastaParseError`); `None` means plain text. Binary handles
+  are read and written as plain UTF-8, or compressed with an explicit format (a text
+  handle then raises `FastaError`); a handle is never closed. gzip output no longer
+  stores the file name, so it depends only on the entries. `FastaIndex` still indexes only uncompressed files.
 - FASTA Toolkit web app (`site/`, deployed to https://tacular-omics.github.io/fastatacular/ by `.github/workflows/pages.yml`): decoys with every method, decoy QC with peptacular, clean-up and merge, stats, and FASTA/CSV/PEFF export, all in the browser with Pyodide. `scripts/site_smoke.py` tests it headless. Not part of the Python package.
 
 ### Fixed
 
+- `write_fasta` and `write_decoy_fasta` write `\n` line endings on every OS; on Windows a
+  path or compressed output used to get `\r\n`.
 - Decoys: residues and `keep_residues` now match case-insensitively in every method.
   A lowercase target used to come back unchanged from `debruijn` and `markov`, and
   `pseudo_reverse` ignored lowercase `k`/`r`. The decoy is made from the upper-cased

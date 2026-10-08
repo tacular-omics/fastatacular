@@ -43,6 +43,7 @@ Everything public is importable from the top-level package:
         to_records,        # flat dicts for pandas/polars (section 8c)
         FastaIndex,        # random access by identifier/accession, samtools .fai (section 8d)
         RECORD_KEYS,       # the record keys, in order
+        Compression,       # Literal["infer", "gzip", "bz2", "xz"] | None (type alias)
     )
     import fastatacular
     fastatacular.__version__   # e.g. "1.1.0"
@@ -55,14 +56,35 @@ importable but its names are re-exported at the top level).
 
 ## 3. Signatures
 
-    read_fasta(source: str | Path | IO[str]) -> list[SequenceEntry]
+    Compression = Literal["infer", "gzip", "bz2", "xz"] | None
+
+        The `compression=` keyword of every reader and writer (pandas style, same as
+        pefftacular). Any other value -> FastaError listing the valid ones.
+        Read:  "infer" (default) sniffs a path's magic bytes; a handle is read as
+               text (a binary handle as plain UTF-8, no sniffing).
+               "gzip"/"bz2"/"xz" force that format: the path or BINARY handle must
+               start with its magic bytes, else FastaParseError; a text handle ->
+               FastaError.
+               None reads plain text even if the bytes look compressed.
+        Write: "infer" (default) compresses a path by suffix (.gz/.bz2/.xz, any case),
+               plain otherwise and always plain to a handle (UTF-8 bytes to a binary
+               one). "gzip"/"bz2"/"xz" force that format whatever the suffix; a
+               handle must then be binary ("wb") (text handle -> FastaError). None
+               is always plain. Handles are never closed, even on error. gzip
+               output has mtime 0 and no file name (reproducible bytes).
+
+    read_fasta(source: str | Path | IO[str] | IO[bytes], *,
+               compression: Compression = "infer") -> list[SequenceEntry]
 
         Read an entire FASTA file into a list of SequenceEntry objects.
         `source` is a filesystem path (str or pathlib.Path), opened as UTF-8, or an
         already-open text-mode file object (anything iterable over lines, e.g.
-        io.StringIO or open(...)). A handle you pass in is not closed.
+        io.StringIO or open(...)), or a binary handle (plain UTF-8, or decompressed
+        with an explicit compression).
+        A handle you pass in is not closed.
 
-    class FastaReader(source: str | Path | IO[str])
+    class FastaReader(source: str | Path | IO[str] | IO[bytes], *,
+                      compression: Compression = "infer")
 
         Iterate over a FASTA file lazily without loading the entire file.
         Must be used as a context manager:
@@ -75,11 +97,11 @@ importable but its names are re-exported at the top level).
         so after a full pass it yields nothing. Open a new reader to re-read.
 
     write_fasta(entries: Iterable[SequenceEntry],
-                dest: str | Path | IO[str],
-                *, line_width: int = 60) -> None
+                dest: str | Path | IO[str] | IO[bytes],
+                *, line_width: int = 60, compression: Compression = "infer") -> None
 
         Write entries to FASTA. `dest` is a path (opened "w", UTF-8, overwriting)
-        or an open text-mode file object (written to, not closed). `entries` can be
+        or an open text or binary file object (written to, not closed). `entries` can be
         any iterable, including a generator. `line_width` wraps sequence lines;
         0 or any value <= 0 writes each sequence on a single line.
         All entries are validated before anything is written; on FastaWriteError
@@ -189,9 +211,14 @@ Compressed files are read transparently (since 1.1): gzip, bzip2 and xz, detecte
 the file's magic bytes (a plain file named `.gz` is read as plain text). The path is
 opened once, so pipes, FIFOs and `/dev/stdin` work. A Python built without `bz2` or
 `lzma` imports fastatacular fine and raises `FastaError` only on such a file. This applies to
-paths only; for a handle, open it yourself (`gzip.open(path, "rt")`).
+paths only; for a handle, pass a binary handle with an explicit `compression=`, or open
+it yourself (`gzip.open(path, "rt")`).
 
     entries = read_fasta("uniprot_sprot.fasta.gz")
+    entries = read_fasta("download.bin", compression="gzip")   # force; mismatch -> FastaError
+    entries = read_fasta("odd.fasta.gz", compression=None)     # plain text, no sniffing
+    with open("x.fasta.xz", "rb") as fh:
+        entries = read_fasta(fh, compression="xz")
 
 ### 5.2 Stream lazily
 
@@ -317,6 +344,10 @@ To a path:
     write_fasta(entries, "out.fasta")            # overwrites
     write_fasta(entries, Path("out.fasta"))
     write_fasta(entries, "out.fasta.gz")         # .gz/.bz2/.xz: compressed by suffix
+    write_fasta(entries, "out.fa", compression="xz")       # explicit wins over the suffix
+    write_fasta(entries, "out.fasta.gz", compression=None) # plain text despite .gz
+    with open("out.fasta.bz2", "wb") as fh:                # handle: binary, left open
+        write_fasta(entries, fh, compression="bz2")
 
 ### 6.2 Line width
 
@@ -503,9 +534,9 @@ Full guide: docs/decoys.md. Signatures (options shared by all four functions):
                         keep_nterm=0, keep_cterm=0, k=2, model="human") -> str
     write_decoy_fasta(src, dst, *, method, concatenate=True, prefix="DECOY_", seed=None,
                       keep_residues=None, keep_nterm=0, keep_cterm=0, k=2, model="human",
-                      line_width=60) -> int   # number of decoys written
+                      line_width=60, compression="infer") -> int   # decoys written; compression for dst
     is_decoy(entry: SequenceEntry | str, *, prefix="DECOY_") -> bool
-    train_markov_model(fasta_paths, *, order=2, metadata=None) -> MarkovModel
+    train_markov_model(fasta_paths, *, order=2, metadata=None, compression="infer") -> MarkovModel
     load_markov_model(name_or_path) -> MarkovModel   # "human", "mouse", "yeast", "ecoli" or a path
     MarkovModel.save(path)                           # .json or .json.gz
 
@@ -556,8 +587,8 @@ fastatacular does not depend on pandas or polars; pass the list to them yourself
 
 ## 8d. Random access (FastaIndex)
 
-    FastaIndex(path, *, key="identifier", duplicates="error")  # one pass, uncompressed file
-    FastaIndex.from_fai(path, fai_path=None, *, key="identifier", duplicates="error")
+    FastaIndex(path, *, key="identifier", duplicates="error", compression="infer")  # uncompressed file
+    FastaIndex.from_fai(path, fai_path=None, *, key="identifier", duplicates="error", compression="infer")
     index.write_fai(fai_path=None) -> Path           # samtools-compatible .fai
     index[k] -> SequenceEntry                        # reads only that entry
     k in index; len(index); list(index)              # keys in file order, no file access
@@ -573,7 +604,9 @@ fastatacular does not depend on pandas or polars; pass the list to them yourself
   WARNING on logger "fastatacular._index" with the count; skipped entries are not in
   the index or its .fai. Missing key -> FastaKeyError (subclass of FastaError and
   KeyError).
-- Compressed input (gzip, bgzip, bzip2, xz) -> FastaError; decompress first. A path
+- Compressed input (gzip, bgzip, bzip2, xz) -> FastaError; decompress first.
+  compression="gzip"/"bz2"/"xz" -> FastaError (cannot index); None skips the magic-byte
+  check and indexes the bytes as plain text. A path
   that is not a regular file (FIFO, pipe, directory) -> FastaError; a missing file ->
   FileNotFoundError.
 - write_fai raises FastaError for entries with uneven line lengths or blank/comment

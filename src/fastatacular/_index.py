@@ -10,6 +10,7 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Literal, cast
 
+from fastatacular._compression import Compression, _check_compression
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import _check_preamble, _compression, _iter_entries, _split_identifier
 from fastatacular.errors import FastaError, FastaKeyError, FastaParseError
@@ -91,6 +92,10 @@ class FastaIndex(Mapping[str, SequenceEntry]):
 
     Only plain (uncompressed) files can be indexed; gzip, bgzip, bzip2 and xz input
     raises :class:`FastaError`. Decompress the file first (``gunzip -k file.fasta.gz``).
+    ``compression`` takes the same values as for :func:`read_fasta`: ``"infer"``
+    (default) refuses a file whose magic bytes show compression, ``None`` skips that
+    check and indexes the bytes as plain text, and ``"gzip"``, ``"bz2"`` or ``"xz"``
+    raise :class:`FastaError` (compressed files cannot be indexed).
 
     :meth:`write_fai` and :meth:`from_fai` save and load a samtools-compatible ``.fai``.
 
@@ -104,11 +109,18 @@ class FastaIndex(Mapping[str, SequenceEntry]):
             is read.
     """
 
-    def __init__(self, path: str | Path, *, key: IndexKey = "identifier", duplicates: Duplicates = "error") -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        key: IndexKey = "identifier",
+        duplicates: Duplicates = "error",
+        compression: Compression = "infer",
+    ) -> None:
         self.path = Path(path)
         self.key: IndexKey = _check_key(key)
         self.duplicates: Duplicates = _check_duplicates(duplicates)
-        _require_plain(self.path)
+        _require_plain(self.path, compression)
         self._spans: dict[str, tuple[int, int]] = {}
         self._names: dict[str, str] = {}  # key -> identifier (the .fai name)
         self._skipped = 0
@@ -286,6 +298,7 @@ class FastaIndex(Mapping[str, SequenceEntry]):
         *,
         key: IndexKey = "identifier",
         duplicates: Duplicates = "error",
+        compression: Compression = "infer",
     ) -> FastaIndex:
         """Load an index from a samtools ``.fai`` (default ``path + ".fai"``) instead of scanning.
 
@@ -307,7 +320,7 @@ class FastaIndex(Mapping[str, SequenceEntry]):
         index.path = Path(path)
         index.key = _check_key(key)
         index.duplicates = _check_duplicates(duplicates)
-        _require_plain(index.path)
+        _require_plain(index.path, compression)
         index._spans = {}
         index._names = {}
         index._skipped = 0
@@ -350,7 +363,15 @@ class FastaIndex(Mapping[str, SequenceEntry]):
         return index
 
 
-def _require_plain(path: Path) -> None:
+def _require_plain(path: Path, compression: Compression = "infer") -> None:
+    compression = _check_compression(compression)
+    if compression is not None and compression != "infer":
+        err = FastaError(f"Cannot index {path} with compression={compression!r}")
+        err.add_note(
+            "hint: FastaIndex needs an uncompressed file; decompress it first and pass "
+            "compression='infer' or None, or read it with read_fasta(path, compression=...)"
+        )
+        raise err
     # A FIFO or pipe would be read (and consumed) by the compression sniff and then
     # mmap'd as an empty file: refuse anything that is not a regular file up front.
     if path.exists() and not path.is_file():
@@ -360,7 +381,7 @@ def _require_plain(path: Path) -> None:
             "pipe; save the input to a file first, or read it once with FastaReader"
         )
         raise err
-    if (kind := _compression(path)) is not None:
+    if compression == "infer" and (kind := _compression(path)) is not None:
         err = FastaError(f"Cannot index {path}: it is {kind}-compressed")
         err.add_note(
             "hint: FastaIndex needs an uncompressed file; decompress it first "
