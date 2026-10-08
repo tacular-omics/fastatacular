@@ -403,6 +403,14 @@ def test_undecodable_preamble(tmp_path: Path) -> None:
         FastaIndex(p)
 
 
+def test_accession_key_ncbi_gi_pdb_chains(tmp_path: Path) -> None:
+    path = tmp_path / "pdb.fasta"
+    path.write_text(">gi|229552|pdb|1MBA|A chain A\nMMM\n>gi|229553|pdb|1MBA|B chain B\nAAA\n")
+    index = FastaIndex(path, key="accession")
+    assert list(index) == ["1MBA_A", "1MBA_B"]
+    assert index["1MBA_B"].sequence == "AAA"
+
+
 def test_accession_key_ncbi_gi(tmp_path: Path) -> None:
     path = tmp_path / "ncbi.fasta"
     path.write_text(

@@ -216,8 +216,11 @@ def _open_for_write(path: Path) -> IO[str]:
     try:
         if kind == "gz":
             import gzip
+            import io
 
-            return gzip.open(path, "wt", encoding="utf-8")
+            # mtime=0 so the same entries always give the same bytes (gzip.open stamps the
+            # current time into the header).
+            return io.TextIOWrapper(gzip.GzipFile(path, mode="wb", mtime=0), encoding="utf-8")
         if kind == "bz2":
             import bz2
 

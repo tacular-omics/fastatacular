@@ -71,9 +71,16 @@ def _split_kv(text: str) -> tuple[int | None, list[tuple[str, str]]]:
 _UNIPROT_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|]+)\|(?P<entry_name>[^|\s]+)$")
 
 # Legacy NCBI ``gi|NUMBER|db|ACCESSION|...`` identifier (``gi|4557757|ref|NP_000240.1|``):
-# the accession is the fourth field, not the GenInfo number. As for UniProt ids, the
-# prefix may carry a decoy/contaminant tag (``DECOY_gi|...``).
-_GI_ID = re.compile(r"^(?P<prefix>[^|\s]*gi)\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
+# the accession is the fourth field, not the GenInfo number. The prefix is ``gi`` itself,
+# optionally after one decoy/contaminant tag (``DECOY_``, ``rev_``, ``Reverse_``,
+# ``CONTAM_``, ``CON_``, ``DECOY-0-``; tag case-insensitive), so ``fungi|...`` is not a gi id.
+# For ``pdb`` the fifth field is the chain: ``gi|229552|pdb|1MBA|A`` gives ``1MBA_A``
+# (NCBI's entry_chain form), so chains of one entry keep distinct accessions.
+_GI_ID = re.compile(
+    r"^(?P<prefix>(?i:(?:DECOY|REVERSE|REV|CONTAM|CON)(?:_|-[0-9]+-))?gi)"
+    r"\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]+)"
+    r"(?:\|(?P<chain>[^|\s]*)(?:\|.*)?)?$"
+)
 
 # NCBI-ish ``db|ID`` or ``db|ID|...`` identifier — accept the leading two fields.
 _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
@@ -89,7 +96,10 @@ def _split_identifier(identifier: str) -> tuple[str, str, str | None] | None:
     if m := _UNIPROT_ID.match(identifier):
         return m["prefix"], m["accession"], m["entry_name"]
     if m := _GI_ID.match(identifier):
-        return m["prefix"], m["accession"], None
+        accession = m["accession"]
+        if m["db"].lower() == "pdb" and m["chain"]:
+            accession = f"{accession}_{m['chain']}"
+        return m["prefix"], accession, None
     if m := _PIPE_ID.match(identifier):
         return m["prefix"], m["accession"], None
     return None
