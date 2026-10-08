@@ -71,6 +71,9 @@ def test_ncbi_style_pipe_id():
         ("rev_gi|4557757|ref|NP_000240.1|", "rev_gi", "NP_000240.1", None),
         ("CONTAM_gi|4557757|ref|NP_000240.1|", "CONTAM_gi", "NP_000240.1", None),
         ("DECOY-0-gi|4557757|ref|NP_000240.1|", "DECOY-0-gi", "NP_000240.1", None),
+        # Tags stack: make_decoys on a tagged contaminant gives DECOY_CON_gi|...
+        ("DECOY_CON_gi|4557757|ref|NP_000240.1|", "DECOY_CON_gi", "NP_000240.1", None),
+        ("rev-1-DECOY_gi|4557757|ref|NP_000240.1|", "rev-1-DECOY_gi", "NP_000240.1", None),
         # Only ``gi`` (optionally decoy/contaminant-tagged) is a GenInfo prefix.
         ("fungi|5|ab|Q|", "fungi", "5", None),
         ("xgi|5|ab|Q|", "xgi", "5", None),

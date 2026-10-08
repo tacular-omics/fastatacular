@@ -25,6 +25,10 @@ All notable changes to this project will be documented in this file.
   A lowercase target used to come back unchanged from `debruijn` and `markov`, and
   `pseudo_reverse` ignored lowercase `k`/`r`. The decoy is made from the upper-cased
   target and keeps the target's case at each position.
+- Legacy NCBI `gi|` identifiers with more than one decoy/contaminant tag
+  (`DECOY_CON_gi|4557757|ref|NP_000240.1|`, as `make_decoys` makes from a `CON_gi|...`
+  target) gave the GenInfo number as `accession`; tags now stack, so the accession is
+  `NP_000240.1` as for a single tag.
 - Legacy NCBI `gi|NUMBER|db|ACCESSION|` identifiers (`gi|4557757|ref|NP_000240.1|`) now
   give `accession="NP_000240.1"` instead of the GenInfo number, in `SequenceEntry` and
   `FastaIndex(key="accession")`. The GenInfo number stays in `identifier`.

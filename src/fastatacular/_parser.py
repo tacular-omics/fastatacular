@@ -80,12 +80,13 @@ _UNIPROT_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|]+)\|(?P<entry
 
 # Legacy NCBI ``gi|NUMBER|db|ACCESSION|...`` identifier (``gi|4557757|ref|NP_000240.1|``):
 # the accession is the fourth field, not the GenInfo number. The prefix is ``gi`` itself,
-# optionally after one decoy/contaminant tag (``DECOY_``, ``rev_``, ``Reverse_``,
+# optionally after decoy/contaminant tags (``DECOY_``, ``rev_``, ``Reverse_``,
 # ``CONTAM_``, ``CON_``, ``DECOY-0-``; tag case-insensitive), so ``fungi|...`` is not a gi id.
+# Tags stack: the decoy of a contaminant is ``DECOY_CON_gi|...``.
 # For ``pdb`` the fifth field is the chain: ``gi|229552|pdb|1MBA|A`` gives ``1MBA_A``
 # (NCBI's entry_chain form), so chains of one entry keep distinct accessions.
 _GI_ID = re.compile(
-    r"^(?P<prefix>(?i:(?:DECOY|REVERSE|REV|CONTAM|CON)(?:_|-[0-9]+-))?gi)"
+    r"^(?P<prefix>(?i:(?:DECOY|REVERSE|REV|CONTAM|CON)(?:_|-[0-9]+-))*gi)"
     r"\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]+)"
     r"(?:\|(?P<chain>[^|\s]*)(?:\|.*)?)?$"
 )
