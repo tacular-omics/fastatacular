@@ -411,6 +411,16 @@ def test_accession_key_ncbi_gi_pdb_chains(tmp_path: Path) -> None:
     assert index["1MBA_B"].sequence == "AAA"
 
 
+def test_accession_key_bare_pdb_chains(tmp_path: Path) -> None:
+    # Chains of one entry used to share the accession 1MBA and raise "Duplicate accession".
+    path = tmp_path / "pdb.fasta"
+    path.write_text(">pdb|1MBA|A chain A\nMMM\n>pdb|1MBA|B chain B\nAAA\n")
+    index = FastaIndex(path, key="accession")
+    assert list(index) == ["1MBA_A", "1MBA_B"]
+    assert index["1MBA_B"].sequence == "AAA"
+    assert index["1MBA_A"].entry_name is None
+
+
 def test_accession_key_ncbi_gi(tmp_path: Path) -> None:
     path = tmp_path / "ncbi.fasta"
     path.write_text(

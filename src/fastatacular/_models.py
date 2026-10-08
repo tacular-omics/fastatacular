@@ -15,8 +15,11 @@ class SequenceEntry:
         prefix / accession / entry_name:
             From UniProt-style ``db|ACCESSION|ENTRY_NAME`` identifiers, or
             NCBI-style ``db|ID|...`` identifiers. For legacy NCBI
-            ``gi|NUMBER|db|ACCESSION|`` ids the accession is ``ACCESSION``
-            and the prefix ``gi``; the GenInfo number stays in ``identifier``.
+            ``gi|NUMBER|db|ACCESSION|NAME`` ids the accession is ``ACCESSION``,
+            the entry name ``NAME`` (when present) and the prefix ``gi``; the
+            GenInfo number stays in ``identifier``. PDB chains
+            (``pdb|1MBA|A``, ``gi|229552|pdb|1MBA|A``) give the accession
+            ``1MBA_A`` and no entry name.
         description: free text after the identifier, before any ``KEY=value``.
         pname:       protein name (the description text minus UniProt keys).
         gname:       gene name (``GN=``).

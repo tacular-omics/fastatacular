@@ -78,17 +78,28 @@ def _split_kv(text: str) -> tuple[int | None, list[tuple[str, str]]]:
 # ``Reverse_sp|...``, ``rev_sp|...`` and ``DECOY-0-sp|...`` keep their accession.
 _UNIPROT_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|]+)\|(?P<entry_name>[^|\s]+)$")
 
-# Legacy NCBI ``gi|NUMBER|db|ACCESSION|...`` identifier (``gi|4557757|ref|NP_000240.1|``):
+# Decoy/contaminant tags recognized in front of ``gi|`` and ``pdb|`` (``DECOY_``, ``rev_``,
+# ``Reverse_``, ``CONTAM_``, ``CON_``, ``DECOY-0-``; case-insensitive). Tags stack: the
+# decoy of a contaminant is ``DECOY_CON_gi|...``.
+_TAGS = r"(?i:(?:DECOY|REVERSE|REV|CONTAM|CON)(?:_|-[0-9]+-))*"
+
+# Legacy NCBI ``gi|NUMBER|db|ACCESSION|NAME`` identifier (``gi|4557757|ref|NP_000240.1|``):
 # the accession is the fourth field, not the GenInfo number. The prefix is ``gi`` itself,
-# optionally after one decoy/contaminant tag (``DECOY_``, ``rev_``, ``Reverse_``,
-# ``CONTAM_``, ``CON_``, ``DECOY-0-``; tag case-insensitive), so ``fungi|...`` is not a gi id.
+# optionally after decoy/contaminant tags, so ``fungi|...`` is not a gi id.
+# The fifth field is the name NCBI puts after the accession (``gi|1|sp|P12345|NAME_HUMAN``),
+# kept as the entry name, as for the bare ``sp|P12345|NAME_HUMAN`` form.
 # For ``pdb`` the fifth field is the chain: ``gi|229552|pdb|1MBA|A`` gives ``1MBA_A``
 # (NCBI's entry_chain form), so chains of one entry keep distinct accessions.
 _GI_ID = re.compile(
-    r"^(?P<prefix>(?i:(?:DECOY|REVERSE|REV|CONTAM|CON)(?:_|-[0-9]+-))?gi)"
+    rf"^(?P<prefix>{_TAGS}gi)"
     r"\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]+)"
-    r"(?:\|(?P<chain>[^|\s]*)(?:\|.*)?)?$"
+    r"(?:\|(?P<name>[^|\s]*)(?:\|.*)?)?$"
 )
+
+# Bare NCBI ``pdb|ENTRY|CHAIN`` identifier: the accession is ``ENTRY_CHAIN``, the same as
+# for ``gi|N|pdb|ENTRY|CHAIN``, with no entry name. Checked before the UniProt rule, which
+# would otherwise take the chain for the entry name and give every chain the same accession.
+_PDB_ID = re.compile(rf"^(?P<prefix>{_TAGS}pdb)\|(?P<entry>[^|\s]+)\|(?P<chain>[^|\s]*)(?:\|.*)?$")
 
 # NCBI-ish ``db|ID`` or ``db|ID|...`` identifier — accept the leading two fields.
 _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
@@ -99,15 +110,20 @@ def _split_identifier(identifier: str) -> tuple[str, str, str | None] | None:
 
     ``sp|P12345|NAME_HUMAN`` gives ``("sp", "P12345", "NAME_HUMAN")``;
     ``gi|4557757|ref|NP_000240.1|`` gives ``("gi", "NP_000240.1", None)`` (the GenInfo
-    number stays in the identifier); other ``db|ID|...`` ids give their first two fields.
+    number stays in the identifier) and ``gi|1|sp|P12345|NAME_HUMAN`` gives
+    ``("gi", "P12345", "NAME_HUMAN")``; ``pdb|1MBA|A`` and ``gi|229552|pdb|1MBA|A`` give
+    the accession ``1MBA_A``; other ``db|ID|...`` ids give their first two fields.
     """
+    if m := _PDB_ID.match(identifier):
+        chain = m["chain"]
+        return m["prefix"], f"{m['entry']}_{chain}" if chain else m["entry"], None
     if m := _UNIPROT_ID.match(identifier):
         return m["prefix"], m["accession"], m["entry_name"]
     if m := _GI_ID.match(identifier):
-        accession = m["accession"]
-        if m["db"].lower() == "pdb" and m["chain"]:
-            accession = f"{accession}_{m['chain']}"
-        return m["prefix"], accession, None
+        accession, name = m["accession"], m["name"] or None
+        if m["db"].lower() == "pdb":
+            return m["prefix"], f"{accession}_{name}" if name else accession, None
+        return m["prefix"], accession, name
     if m := _PIPE_ID.match(identifier):
         return m["prefix"], m["accession"], None
     return None

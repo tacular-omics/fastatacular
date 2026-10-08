@@ -25,9 +25,23 @@ All notable changes to this project will be documented in this file.
   A lowercase target used to come back unchanged from `debruijn` and `markov`, and
   `pseudo_reverse` ignored lowercase `k`/`r`. The decoy is made from the upper-cased
   target and keeps the target's case at each position.
+- Legacy NCBI `gi|` identifiers with more than one decoy/contaminant tag
+  (`DECOY_CON_gi|4557757|ref|NP_000240.1|`, as `make_decoys` makes from a `CON_gi|...`
+  target) gave the GenInfo number as `accession`; tags now stack, so the accession is
+  `NP_000240.1` as for a single tag.
 - Legacy NCBI `gi|NUMBER|db|ACCESSION|` identifiers (`gi|4557757|ref|NP_000240.1|`) now
   give `accession="NP_000240.1"` instead of the GenInfo number, in `SequenceEntry` and
   `FastaIndex(key="accession")`. The GenInfo number stays in `identifier`.
+- Bare NCBI `pdb|ENTRY|CHAIN` identifiers (`pdb|1MBA|A`) now give `accession="1MBA_A"`
+  and no `entry_name`, the same as `gi|229552|pdb|1MBA|A`. They used to give accession
+  `1MBA` with the chain as `entry_name`, so chains of one entry shared an accession and
+  `FastaIndex(key="accession")` raised "Duplicate accession". **The accession of bare pdb
+  ids changes** (`1MBA` becomes `1MBA_A`); `pdb|1MBA|` with no chain still gives `1MBA`.
+  Decoy/contaminant tags work as for `gi|` (`rev_pdb|1MBA|A` gives `1MBA_A`).
+- `gi|NUMBER|db|ACCESSION|NAME` identifiers now keep the fifth field as `entry_name`
+  (`gi|1|sp|P12345|NAME_HUMAN` gives `NAME_HUMAN`), as the bare `sp|P12345|NAME_HUMAN`
+  form does; it used to be dropped. For `pdb` the fifth field is still the chain in the
+  accession.
 - `write_fasta` (and `write_decoy_fasta`) to a path ending in `.gz`, `.bz2` or `.xz` now
   writes gzip, bzip2 or xz compressed output; it used to write plain text.
 
