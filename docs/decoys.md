@@ -76,9 +76,13 @@ is_decoy(decoys[0])    # True
 - `model` (markov only): `"human"`, `"mouse"`, `"yeast"`, `"ecoli"`, a path to a saved
   model, or a `MarkovModel`.
 
-Residues outside the 20 standard amino acids (`X`, `U`, `B`, lowercase and so on) stay at
+Residues outside the 20 standard amino acids (`X`, `U`, `B` and so on) stay at
 their positions for `debruijn` and `markov`. `reverse`, `pseudo_reverse` and `shuffle`
 move them with the rest of the sequence.
+
+Residues match case-insensitively, `keep_residues` included: a lowercase or mixed-case
+target gets the decoy of its upper-case form, lowercase at each position where the
+target is lowercase.
 
 `write_decoy_fasta(src, dst, *, method, concatenate=True, ...)` writes the targets
 followed by the decoys (or, with `concatenate=False`, the decoys only) and returns the

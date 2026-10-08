@@ -53,9 +53,36 @@ def test_ncbi_style_pipe_id():
     [e] = _read_str(">gi|12345|ref|NP_000001.1| some description\nACDEFG\n")
     assert e.identifier == "gi|12345|ref|NP_000001.1|"
     assert e.prefix == "gi"
-    assert e.accession == "12345"
+    assert e.accession == "NP_000001.1"
     assert e.entry_name is None
     assert e.description == "some description"
+
+
+@pytest.mark.parametrize(
+    ("identifier", "prefix", "accession", "entry_name"),
+    [
+        ("gi|4557757|ref|NP_000240.1|", "gi", "NP_000240.1", None),
+        ("gi|4557757|ref|NP_000240.1", "gi", "NP_000240.1", None),
+        ("gi|2914639|gb|AAC04434.1|", "gi", "AAC04434.1", None),
+        ("gi|1234|emb|CAA12345.1|", "gi", "CAA12345.1", None),
+        ("gi|1234|pdb|1ABC|A", "gi", "1ABC_A", None),
+        ("gi|1234|pdb|1ABC|", "gi", "1ABC", None),
+        ("gi|1234|pdb|1ABC", "gi", "1ABC", None),
+        ("rev_gi|4557757|ref|NP_000240.1|", "rev_gi", "NP_000240.1", None),
+        ("CONTAM_gi|4557757|ref|NP_000240.1|", "CONTAM_gi", "NP_000240.1", None),
+        ("DECOY-0-gi|4557757|ref|NP_000240.1|", "DECOY-0-gi", "NP_000240.1", None),
+        # Only ``gi`` (optionally decoy/contaminant-tagged) is a GenInfo prefix.
+        ("fungi|5|ab|Q|", "fungi", "5", None),
+        ("xgi|5|ab|Q|", "xgi", "5", None),
+        ("DECOY_gi|4557757|ref|NP_000240.1|", "DECOY_gi", "NP_000240.1", None),
+        ("ref|NP_000240.1|", "ref", "NP_000240.1", None),
+        ("sp|P12345|NAME_HUMAN", "sp", "P12345", "NAME_HUMAN"),
+        ("tr|A0A024R161|A0A024R161_HUMAN", "tr", "A0A024R161", "A0A024R161_HUMAN"),
+    ],
+)
+def test_ncbi_gi_accession(identifier: str, prefix: str, accession: str, entry_name: str | None) -> None:
+    [e] = _read_str(f">{identifier} desc\nACDEFG\n")
+    assert (e.identifier, e.prefix, e.accession, e.entry_name) == (identifier, prefix, accession, entry_name)
 
 
 def test_extra_keys_captured():

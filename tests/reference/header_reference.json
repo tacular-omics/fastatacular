@@ -278,7 +278,7 @@
    "header": ">gi|4557757|ref|NP_000240.1| MutL protein homolog 1 [Homo sapiens]",
    "expected": {
     "prefix": "gi",
-    "accession": "4557757",
+    "accession": "NP_000240.1",
     "entry_name": null,
     "pname": "MutL protein homolog 1 [Homo sapiens]",
     "os_name": null,

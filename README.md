@@ -132,7 +132,7 @@ entries = [
 write_fasta(entries, "output.fasta")
 ```
 
-`dest` accepts a path string, a `pathlib.Path`, or a text-mode file object.
+`dest` accepts a path string, a `pathlib.Path`, or a text-mode file object. A path ending in `.gz`, `.bz2` or `.xz` is written gzip, bzip2 or xz compressed.
 
 Sequence lines wrap at 60 characters by default. Override with `line_width=` (pass `0` to disable wrapping):
 

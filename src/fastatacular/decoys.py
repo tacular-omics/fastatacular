@@ -19,7 +19,7 @@ Five methods, all streaming and reproducible with ``seed``:
     package ships order-2 models for human, mouse, yeast and E. coli.
 
 Every method takes ``keep_residues`` (residues that stay at their positions, e.g.
-``"KR"`` or ``"KRP"``), ``keep_nterm`` and ``keep_cterm`` (how many terminal residues
+``"KR"`` or ``"KRP"``, matched case-insensitively), ``keep_nterm`` and ``keep_cterm`` (how many terminal residues
 stay). Replacement residues are never drawn from ``keep_residues``, so with
 ``keep_residues="KR"`` every method keeps the target's cleavage sites exactly.
 
@@ -67,6 +67,7 @@ AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
 """The 20 standard amino acids, the alphabet of the Markov models."""
 
 DEFAULT_PREFIX = "DECOY_"
+_UPPER = str.maketrans("abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 _MAX_ORDER = 4
 _MAX_TRIES = 10
 _MODEL_FORMAT = "fastatacular-markov/1"
@@ -296,6 +297,8 @@ class _Decoyer:
         if not isinstance(keep_residues, str):
             raise DecoyError(f"keep_residues must be a str, got {type(keep_residues).__name__}")
         self.method = method
+        # Residues match case-insensitively: sequences are decoyed upper-cased.
+        keep_residues = keep_residues.translate(_UPPER)
         self.keep = frozenset(keep_residues)
         self.nterm = _check_count("keep_nterm", keep_nterm)
         self.cterm = _check_count("keep_cterm", keep_cterm)
@@ -321,6 +324,14 @@ class _Decoyer:
         return random.Random(int.from_bytes(digest))
 
     def __call__(self, seq: str) -> str:
+        """Decoy of ``seq``, made from its upper-cased residues; lowercase positions stay lowercase."""
+        upper = seq.translate(_UPPER)
+        decoy = self._decoy(upper)
+        if upper == seq:
+            return decoy
+        return "".join(d.lower() if c != u else d for c, u, d in zip(seq, upper, decoy, strict=True))
+
+    def _decoy(self, seq: str) -> str:
         n = len(seq)
         lo = min(self.nterm, n)
         hi = max(lo, n - self.cterm)
@@ -388,6 +399,7 @@ class _Decoyer:
         uses: Counter[str] = Counter()
         remaining: Counter[str] = Counter()
         for seq in sequences:
+            seq = seq.translate(_UPPER)
             n = len(seq)
             lo = min(self.nterm, n)
             hi = max(lo, n - self.cterm)
@@ -492,7 +504,7 @@ def make_decoys(
         seed: Makes the output reproducible: the same seed, options and sequence
             always give the same decoy, whatever else is in the database.
             ``None`` draws a fresh random seed.
-        keep_residues: Residues that stay at their positions (case-sensitive).
+        keep_residues: Residues that stay at their positions (case-insensitive).
             Defaults to ``"KR"`` for ``pseudo_reverse`` and ``""`` otherwise.
             Replacement residues are never drawn from this set.
         keep_nterm: Number of N-terminal residues kept (e.g. 1 for the initiator Met).
@@ -505,8 +517,12 @@ def make_decoys(
     ``shuffle`` and ``markov`` retry up to 10 times when the decoy equals the target;
     ``reverse``/``pseudo_reverse`` return a palindromic sequence unchanged, and any
     method returns a sequence unchanged when every position is kept.
-    Residues outside the 20 standard amino acids (``X``, ``U``, ``*``, lowercase, ...)
-    stay in place for ``markov`` and ``debruijn``.
+    Residues outside the 20 standard amino acids (``X``, ``U``, ``*``, ...) stay in
+    place for ``markov`` and ``debruijn``.
+
+    Residues match case-insensitively (``keep_residues`` included): a lowercase or
+    mixed-case target gives the decoy of its upper-case form, with each position
+    lowercase where the target's position is lowercase.
 
     ``debruijn`` labels the de Bruijn graph of the whole input, so it reads every
     entry before yielding the first decoy, and a decoy depends on the other

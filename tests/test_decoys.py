@@ -385,3 +385,42 @@ def test_method_and_prefix_are_keyword_only() -> None:
         make_decoy_sequence("MKV", "reverse")  # type: ignore[misc]
     with pytest.raises(TypeError):
         is_decoy(entry, "DECOY_")  # type: ignore[misc]
+
+
+# --- case-insensitive residues ----------------------------------------------------
+
+
+def _case_like(decoy: str, target: str) -> str:
+    return "".join(d.lower() if t.islower() else d for t, d in zip(target, decoy, strict=True))
+
+
+@pytest.mark.parametrize("method", METHODS)
+@pytest.mark.parametrize("target", ["mpeptidekaaarggg", "MpEpTiDeKaAaRgGg", "MPEPTIDEkaaarGGG"])
+@pytest.mark.parametrize("keep", [None, "KR", "kr", "Kr"])
+def test_lowercase_matches_uppercase(method: str, target: str, keep: str | None) -> None:
+    upper = target.upper()
+    expected = make_decoy_sequence(upper, method=method, seed=3, keep_residues=keep)  # type: ignore[arg-type]
+    decoy = make_decoy_sequence(target, method=method, seed=3, keep_residues=keep)  # type: ignore[arg-type]
+    assert decoy == _case_like(expected, target)
+    assert decoy != target
+    if keep:
+        assert all(decoy[i] == target[i] for i, c in enumerate(upper) if c in "KR")
+
+
+@pytest.mark.parametrize("method", ["pseudo_reverse", "shuffle", "debruijn", "markov"])
+def test_lowercase_cleavage_sites_kept(method: str) -> None:
+    target = "mpeptidekaaarggg"
+    decoy = make_decoy_sequence(target, method=method, seed=5, keep_residues="KR")  # type: ignore[arg-type]
+    assert decoy[8] == "k" and decoy[12] == "r"
+    assert decoy != target and decoy.islower()
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_make_decoys_lowercase_entries(method: str) -> None:
+    seqs = ["MPEPTIDEKAAARGGG", "ACDEFGHIKLMNPQRSTVWY", "MKWVTFISLLLLFSSAYSRGV"]
+    upper = [SequenceEntry(identifier=f"p{i}", sequence=s) for i, s in enumerate(seqs)]
+    lower = [SequenceEntry(identifier=f"p{i}", sequence=s.lower()) for i, s in enumerate(seqs)]
+    up = [e.sequence for e in make_decoys(upper, method=method, seed=9)]  # type: ignore[arg-type]
+    lo = [e.sequence for e in make_decoys(lower, method=method, seed=9)]  # type: ignore[arg-type]
+    assert lo == [s.lower() for s in up]
+    assert all(d != t.sequence for d, t in zip(lo, lower, strict=True))

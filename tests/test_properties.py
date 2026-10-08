@@ -60,7 +60,7 @@ def identifiers(draw: st.DrawFn) -> dict[str, Any]:
         return {"identifier": f"{db}|{acc}|{name}", "prefix": db, "accession": acc, "entry_name": name}
     if kind == "ncbi_gi":
         gi = str(draw(st.integers(1, 10**9)))
-        return {"identifier": f"gi|{gi}|ref|NP_{gi}.1|", "prefix": "gi", "accession": gi, "entry_name": None}
+        return {"identifier": f"gi|{gi}|ref|NP_{gi}.1|", "prefix": "gi", "accession": f"NP_{gi}.1", "entry_name": None}
     ident = draw(st.from_regex(r"\A[A-Za-z0-9_.:-]{1,20}\Z"))
     return {"identifier": ident, "prefix": None, "accession": None, "entry_name": None}
 

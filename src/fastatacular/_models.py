@@ -14,7 +14,9 @@ class SequenceEntry:
     Parsed from common header conventions when available:
         prefix / accession / entry_name:
             From UniProt-style ``db|ACCESSION|ENTRY_NAME`` identifiers, or
-            NCBI-style ``db|ID|...`` identifiers.
+            NCBI-style ``db|ID|...`` identifiers. For legacy NCBI
+            ``gi|NUMBER|db|ACCESSION|`` ids the accession is ``ACCESSION``
+            and the prefix ``gi``; the GenInfo number stays in ``identifier``.
         description: free text after the identifier, before any ``KEY=value``.
         pname:       protein name (the description text minus UniProt keys).
         gname:       gene name (``GN=``).
