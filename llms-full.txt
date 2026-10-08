@@ -46,7 +46,7 @@ Everything public is importable from the top-level package:
         Compression,       # Literal["infer", "gzip", "bz2", "xz"] | None (type alias)
     )
     import fastatacular
-    fastatacular.__version__   # e.g. "1.1.0"
+    fastatacular.__version__   # e.g. "1.2.0"
 
 There is no CLI. The only logging is one warning from `FastaIndex(..., duplicates="first")`. The decoy names live in the public module
 `fastatacular.decoys` and are re-exported at the top level. There are no other submodules you need to import directly

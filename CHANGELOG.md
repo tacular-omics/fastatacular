@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] (2026-10-08)
+
 ### Added
 
 - `compression=` keyword on `read_fasta`, `FastaReader`, `write_fasta`, `write_decoy_fasta`
