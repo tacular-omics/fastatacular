@@ -243,17 +243,51 @@ def test_custom_prefix_keeps_accession(prefix: str, header: str, accession: str 
     assert buf.getvalue() == f">{prefix}{header}\nAVLKM\n"
 
 
-def test_custom_prefix_read_back_reparses_the_header() -> None:
-    """A file read back is parsed again; a custom prefix in front of pdb/gi is not a known tag."""
+_READ_BACK_HEADERS = [
+    *_PREFIX_HEADERS,
+    ("tr|A0A024R161|A0A024R161_HUMAN Protein", "A0A024R161", "A0A024R161_HUMAN"),
+    ("prf||0601246A", "0601246A", None),
+    ("gi|7428543|prf||0601246A", "0601246A", None),
+]
+
+
+@pytest.mark.parametrize("prefix", ["XXX_", "REV__", "DECOY_", "rev-", "decoy.", "rev-1-", "DECOY_CON_"])
+@pytest.mark.parametrize(("header", "accession", "entry_name"), _READ_BACK_HEADERS)
+def test_custom_prefix_reads_back_with_target_accession(
+    prefix: str, header: str, accession: str | None, entry_name: str | None
+) -> None:
+    """A written decoy file read back gives the accession and entry name the decoy has in memory."""
+    [target] = read_fasta(io.StringIO(f">{header}\nMKLVA\n"))
+    [decoy] = make_decoys([target], method="reverse", prefix=prefix)
+    buf = io.StringIO()
+    write_fasta([decoy], buf)
+    [back] = read_fasta(io.StringIO(buf.getvalue()))
+    assert (back.accession, back.entry_name) == (accession, entry_name)
+    assert (back.identifier, back.prefix) == (decoy.identifier, decoy.prefix)
+
+
+@given(
+    prefix=st.text(
+        alphabet=st.characters(codec="ascii", exclude_characters="|>", categories=["L", "N", "P", "S"])
+    ).filter(lambda p: p and not p[-1].isalnum()),
+    header=st.sampled_from([h for h, _, _ in _READ_BACK_HEADERS]),
+)
+def test_custom_prefix_read_back_property(prefix: str, header: str) -> None:
+    """Any prefix ending in a non-alphanumeric character reads back with the target's accession."""
+    [target] = read_fasta(io.StringIO(f">{header}\nMKLVA\n"))
+    buf = io.StringIO()
+    write_fasta(make_decoys([target], method="reverse", prefix=prefix), buf)
+    [back] = read_fasta(io.StringIO(buf.getvalue()))
+    assert (back.accession, back.entry_name) == (target.accession, target.entry_name)
+
+
+def test_prefix_ending_in_alphanumeric_reads_back_as_generic_id() -> None:
+    """A prefix glued to ``gi``/``pdb`` (``XXXgi|``) is not separable from a db name such as ``fungi``."""
     [target] = read_fasta(io.StringIO(">pdb|1MBA|A\nMKLVA\n"))
     buf = io.StringIO()
-    write_fasta(make_decoys([target], method="reverse", prefix="XXX_"), buf)
+    write_fasta(make_decoys([target], method="reverse", prefix="XXX"), buf)
     [back] = read_fasta(io.StringIO(buf.getvalue()))
     assert (back.accession, back.entry_name) == ("1MBA", "A")
-    buf = io.StringIO()
-    write_fasta(make_decoys([target], method="reverse", prefix="DECOY_"), buf)
-    [back] = read_fasta(io.StringIO(buf.getvalue()))
-    assert (back.accession, back.entry_name) == ("1MBA_A", None)
 
 
 def test_decoy_header_for_edited_entry_uses_current_fields() -> None:

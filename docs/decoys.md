@@ -71,11 +71,11 @@ is_decoy(decoys[0])    # True
 - `prefix`: prepended to the identifier (default `DECOY_`), e.g.
   `>DECOY_sp|P12345|EX_HUMAN ...`. All other header text is kept, so tools that group by
   accession still see the target's accession on the decoy entry. The decoy entry keeps
-  the target's `accession` and `entry_name` for any prefix. A file read back is parsed
-  again, and the reader only knows the built-in tags (`DECOY_`, `rev_`, `REVERSE_`,
-  `CON_`, `CONTAM_`, `DECOY-0-`, case-insensitive) in front of `pdb|`, `gi|`, `pir||`
-  and `prf||` ids: `XXX_pdb|1MBA|A` reads back as accession `1MBA`, not `1MBA_A`. Use a
-  built-in tag if you read the decoy file back. The prefix must be non-empty and
+  the target's `accession` and `entry_name` for any prefix, and a decoy file read back
+  gives the same values when the prefix ends in a character other than a letter or digit
+  (`DECOY_`, `XXX_`, `REV__`, `rev-`). A prefix glued to the database tag, such as `XXX`
+  in `XXXpdb|1MBA|A`, cannot be told apart from a database name (`fungi|...`) and reads
+  back as a generic `db|ID` id (accession `1MBA`). The prefix must be non-empty and
   contain no whitespace.
 - `k` (debruijn only): the k-mer length, default 2.
 - `model` (markov only): `"human"`, `"mouse"`, `"yeast"`, `"ecoli"`, a path to a saved

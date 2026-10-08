@@ -78,14 +78,16 @@ def _split_kv(text: str) -> tuple[int | None, list[tuple[str, str]]]:
 # ``Reverse_sp|...``, ``rev_sp|...`` and ``DECOY-0-sp|...`` keep their accession.
 _UNIPROT_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|]+)\|(?P<entry_name>[^|\s]+)$")
 
-# Decoy/contaminant tags recognized in front of ``gi|`` and ``pdb|`` (``DECOY_``, ``rev_``,
-# ``Reverse_``, ``CONTAM_``, ``CON_``, ``DECOY-0-``; case-insensitive). Tags stack: the
-# decoy of a contaminant is ``DECOY_CON_gi|...``.
-_TAGS = r"(?i:(?:DECOY|REVERSE|REV|CONTAM|CON)(?:_|-[0-9]+-))*"
+# Decoy/contaminant prefix allowed in front of ``gi|``, ``pdb|``, ``pir||`` and ``prf||``:
+# any run without ``|`` or whitespace that ends in a character other than a letter or digit
+# (``DECOY_``, ``rev_``, ``XXX_``, ``REV__``, ``DECOY-0-``, ``decoy.``). Prefixes stack: the
+# decoy of a contaminant is ``DECOY_CON_gi|...``. The final separator keeps ``fungi|...``
+# and ``xgi|...`` from being read as gi ids.
+_TAGS = r"(?:[^|\s]*[^|\sA-Za-z0-9])?"
 
 # Legacy NCBI ``gi|NUMBER|db|ACCESSION|NAME`` identifier (``gi|4557757|ref|NP_000240.1|``):
 # the accession is the fourth field, not the GenInfo number. The prefix is ``gi`` itself,
-# optionally after decoy/contaminant tags, so ``fungi|...`` is not a gi id.
+# optionally after a decoy/contaminant prefix (``_TAGS``).
 # The fifth field is the name NCBI puts after the accession (``gi|1|sp|P12345|NAME_HUMAN``),
 # kept as the entry name, as for the bare ``sp|P12345|NAME_HUMAN`` form.
 # For ``pdb`` the fifth field is the chain: ``gi|229552|pdb|1MBA|A`` gives ``1MBA_A``

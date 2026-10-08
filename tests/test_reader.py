@@ -97,6 +97,14 @@ def test_ncbi_style_pipe_id():
         ("DECOY_pir||S71500", "DECOY_pir", "S71500", None),
         ("rev_prf||0601246A", "rev_prf", "0601246A", None),
         ("gi|7428543|pir||S71500", "gi", "S71500", None),
+        # Custom decoy prefixes ending in a non-alphanumeric character work like the built-in tags.
+        ("XXX_gi|1|ref|NP_1.1|", "XXX_gi", "NP_1.1", None),
+        ("XXX_gi|1|sp|P1|A_B", "XXX_gi", "P1", "A_B"),
+        ("XXX_gi|229552|pdb|1MBA|A", "XXX_gi", "1MBA_A", None),
+        ("XXX_pir||S71500", "XXX_pir", "S71500", None),
+        ("REV__prf||0601246A", "REV__prf", "0601246A", None),
+        ("REV__pdb|1MBA|A", "REV__pdb", "1MBA_A", None),
+        ("decoy.gi|7428543|pir||S71500", "decoy.gi", "S71500", None),
         ("gi|7428543|prf||0601246A", "gi", "0601246A", None),
         ("DECOY_gi|7428543|pir||S71500", "DECOY_gi", "S71500", None),
         # An empty middle field in other dbs is not a known form: first two fields as before.

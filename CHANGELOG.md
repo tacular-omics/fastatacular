@@ -47,9 +47,11 @@ All notable changes to this project will be documented in this file.
   and entry name `A` (expected `1MBA_A`), and on `gi|1|ref|NP_1.1|` gave the GenInfo
   number `1`. The decoy entry is now built from the target's parsed fields plus the
   prefix, so it keeps the target's `accession` and `entry_name` for any prefix. The
-  written header is unchanged (prefix + target header). Reading the file back still
-  parses each header again; only the built-in tags (`DECOY_`, `rev_`, ...) are
-  recognised in front of `pdb|`/`gi|`, so a custom prefix there reads back as before.
+  written header is unchanged (prefix + target header).
+- Reading back a decoy with a custom prefix in front of `gi|`, `pdb|`, `pir||` or `prf||`
+  gave the wrong accession (`XXX_gi|1|ref|NP_1.1|` gave `1`, `XXX_pir||S71500` gave
+  none). Any prefix ending in a character other than a letter or digit (`XXX_`, `REV__`)
+  is now recognised there, as the built-in tags were.
 - `write_fasta` writes `raw_header` verbatim whenever it still parses to the entry's
   header text fields; `prefix`, `accession` and `entry_name` no longer force a rebuild
   (the header cannot carry them apart from the identifier). Decoys with a custom prefix

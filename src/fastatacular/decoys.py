@@ -481,9 +481,8 @@ def _decoy_entry(entry: SequenceEntry, sequence: str, prefix: str) -> SequenceEn
     """The decoy of ``entry``: its header fields with ``prefix`` on the identifier.
 
     The target's header is parsed as is and only then prefixed, so the accession and
-    entry name stay the target's whatever the prefix. Re-parsing the prefixed header
-    would not: the parser knows only the built-in tags in front of ``pdb|`` and ``gi|``,
-    so ``XXX_pdb|1MBA|A`` would give the accession ``1MBA``.
+    entry name stay the target's whatever the prefix, even one that re-parses differently
+    (``XXXpdb|1MBA|A``, glued to the database tag, reads as accession ``1MBA``).
     """
     header, _ = _build_header_line(entry)
     parsed = _parse_header_line(header, 0)
@@ -514,11 +513,10 @@ def make_decoys(
     ``accession``, ``entry_name`` and the description fields are the target's, for
     any prefix (``rev-pdb|1MBA|A`` keeps the accession ``1MBA_A``).
 
-    Reading a written decoy file back parses each header again: the parser
-    recognises ``DECOY_``, ``rev_`` and the other built-in tags in front of ``pdb|``
-    and ``gi|`` (and ``pir||``/``prf||``), but not a custom prefix there, so
-    ``XXX_pdb|1MBA|A`` reads back with the accession ``1MBA``. Use a built-in tag as
-    the prefix when the file is to be read back.
+    A written decoy file reads back with the same accession and entry name when the
+    prefix ends in a character other than a letter or digit (``DECOY_``, ``XXX_``,
+    ``REV__``). A prefix such as ``XXX`` glued to ``pdb|``/``gi|``/``pir||``/``prf||``
+    cannot be told apart from a database name and reads back as a generic ``db|ID`` id.
 
     Args:
         entries: Target entries, e.g. from :func:`~fastatacular.read_fasta` or a
