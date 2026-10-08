@@ -78,21 +78,23 @@ def _split_kv(text: str) -> tuple[int | None, list[tuple[str, str]]]:
 # ``Reverse_sp|...``, ``rev_sp|...`` and ``DECOY-0-sp|...`` keep their accession.
 _UNIPROT_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|]+)\|(?P<entry_name>[^|\s]+)$")
 
-# Decoy/contaminant tags recognized in front of ``gi|`` and ``pdb|`` (``DECOY_``, ``rev_``,
-# ``Reverse_``, ``CONTAM_``, ``CON_``, ``DECOY-0-``; case-insensitive). Tags stack: the
-# decoy of a contaminant is ``DECOY_CON_gi|...``.
-_TAGS = r"(?i:(?:DECOY|REVERSE|REV|CONTAM|CON)(?:_|-[0-9]+-))*"
+# Decoy/contaminant prefix allowed in front of ``gi|``, ``pdb|``, ``pir||`` and ``prf||``:
+# any run without ``|`` or whitespace that ends in a character other than a letter or digit
+# (``DECOY_``, ``rev_``, ``XXX_``, ``REV__``, ``DECOY-0-``, ``decoy.``). Prefixes stack: the
+# decoy of a contaminant is ``DECOY_CON_gi|...``. The final separator keeps ``fungi|...``
+# and ``xgi|...`` from being read as gi ids.
+_TAGS = r"(?:[^|\s]*[^|\sA-Za-z0-9])?"
 
 # Legacy NCBI ``gi|NUMBER|db|ACCESSION|NAME`` identifier (``gi|4557757|ref|NP_000240.1|``):
 # the accession is the fourth field, not the GenInfo number. The prefix is ``gi`` itself,
-# optionally after decoy/contaminant tags, so ``fungi|...`` is not a gi id.
+# optionally after a decoy/contaminant prefix (``_TAGS``).
 # The fifth field is the name NCBI puts after the accession (``gi|1|sp|P12345|NAME_HUMAN``),
 # kept as the entry name, as for the bare ``sp|P12345|NAME_HUMAN`` form.
 # For ``pdb`` the fifth field is the chain: ``gi|229552|pdb|1MBA|A`` gives ``1MBA_A``
 # (NCBI's entry_chain form), so chains of one entry keep distinct accessions.
 _GI_ID = re.compile(
     rf"^(?P<prefix>{_TAGS}gi)"
-    r"\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]+)"
+    r"\|(?P<gi>[0-9]+)\|(?P<db>[A-Za-z]+)\|(?P<accession>[^|\s]*)"
     r"(?:\|(?P<name>[^|\s]*)(?:\|.*)?)?$"
 )
 
@@ -100,6 +102,11 @@ _GI_ID = re.compile(
 # for ``gi|N|pdb|ENTRY|CHAIN``, with no entry name. Checked before the UniProt rule, which
 # would otherwise take the chain for the entry name and give every chain the same accession.
 _PDB_ID = re.compile(rf"^(?P<prefix>{_TAGS}pdb)\|(?P<entry>[^|\s]+)\|(?P<chain>[^|\s]*)(?:\|.*)?$")
+
+# NCBI ``pir||ENTRY`` and ``prf||NAME`` identifiers: the middle field is empty by
+# definition, so the accession is the third field. ``gi|N|pir||ENTRY`` is handled by ``_GI_ID``.
+_EMPTY_MIDDLE_DBS = frozenset({"pir", "prf"})
+_EMPTY_MIDDLE_ID = re.compile(rf"^(?P<prefix>{_TAGS}(?:pir|prf))\|\|(?P<accession>[^|\s]+)(?:\|.*)?$")
 
 # NCBI-ish ``db|ID`` or ``db|ID|...`` identifier — accept the leading two fields.
 _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
@@ -112,15 +119,21 @@ def _split_identifier(identifier: str) -> tuple[str, str, str | None] | None:
     ``gi|4557757|ref|NP_000240.1|`` gives ``("gi", "NP_000240.1", None)`` (the GenInfo
     number stays in the identifier) and ``gi|1|sp|P12345|NAME_HUMAN`` gives
     ``("gi", "P12345", "NAME_HUMAN")``; ``pdb|1MBA|A`` and ``gi|229552|pdb|1MBA|A`` give
-    the accession ``1MBA_A``; other ``db|ID|...`` ids give their first two fields.
+    the accession ``1MBA_A``; ``pir||S71500``, ``prf||0601246A`` and
+    ``gi|7428543|pir||S71500`` give the third (or fifth) field; other ``db|ID|...`` ids
+    give their first two fields.
     """
     if m := _PDB_ID.match(identifier):
         chain = m["chain"]
         return m["prefix"], f"{m['entry']}_{chain}" if chain else m["entry"], None
     if m := _UNIPROT_ID.match(identifier):
         return m["prefix"], m["accession"], m["entry_name"]
-    if m := _GI_ID.match(identifier):
+    if m := _EMPTY_MIDDLE_ID.match(identifier):
+        return m["prefix"], m["accession"], None
+    if (m := _GI_ID.match(identifier)) and (m["accession"] or (m["db"].lower() in _EMPTY_MIDDLE_DBS and m["name"])):
         accession, name = m["accession"], m["name"] or None
+        if not accession:  # gi|N|pir||ENTRY: the entry is the fifth field
+            return m["prefix"], cast(str, name), None
         if m["db"].lower() == "pdb":
             return m["prefix"], f"{accession}_{name}" if name else accession, None
         return m["prefix"], accession, name

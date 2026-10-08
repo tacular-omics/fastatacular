@@ -42,6 +42,23 @@ All notable changes to this project will be documented in this file.
   (`gi|1|sp|P12345|NAME_HUMAN` gives `NAME_HUMAN`), as the bare `sp|P12345|NAME_HUMAN`
   form does; it used to be dropped. For `pdb` the fifth field is still the chain in the
   accession.
+- `make_decoys` (and `write_decoy_fasta`) with a custom `prefix` changed the decoy's
+  accession for pdb and gi ids: `prefix="XXX_"` on `pdb|1MBA|A` gave accession `1MBA`
+  and entry name `A` (expected `1MBA_A`), and on `gi|1|ref|NP_1.1|` gave the GenInfo
+  number `1`. The decoy entry is now built from the target's parsed fields plus the
+  prefix, so it keeps the target's `accession` and `entry_name` for any prefix. The
+  written header is unchanged (prefix + target header).
+- Reading back a decoy with a custom prefix in front of `gi|`, `pdb|`, `pir||` or `prf||`
+  gave the wrong accession (`XXX_gi|1|ref|NP_1.1|` gave `1`, `XXX_pir||S71500` gave
+  none). Any prefix ending in a character other than a letter or digit (`XXX_`, `REV__`)
+  is now recognised there, as the built-in tags were.
+- `write_fasta` writes `raw_header` verbatim whenever it still parses to the entry's
+  header text fields; `prefix`, `accession` and `entry_name` no longer force a rebuild
+  (the header cannot carry them apart from the identifier). Decoys with a custom prefix
+  are written byte for byte.
+- NCBI `pir||ENTRY` and `prf||NAME` identifiers (`pir||S71500`, `prf||0601246A`, also
+  after `gi|N|` and decoy tags) gave no `accession`. The accession is now the third
+  field, `S71500`; the prefix is `pir`/`prf` (or `gi`), with no `entry_name`.
 - `write_fasta` (and `write_decoy_fasta`) to a path ending in `.gz`, `.bz2` or `.xz` now
   writes gzip, bzip2 or xz compressed output; it used to write plain text.
 

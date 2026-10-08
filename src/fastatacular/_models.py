@@ -19,7 +19,8 @@ class SequenceEntry:
             the entry name ``NAME`` (when present) and the prefix ``gi``; the
             GenInfo number stays in ``identifier``. PDB chains
             (``pdb|1MBA|A``, ``gi|229552|pdb|1MBA|A``) give the accession
-            ``1MBA_A`` and no entry name.
+            ``1MBA_A`` and no entry name. NCBI ``pir||ENTRY`` and
+            ``prf||NAME`` (also after ``gi|N|``) give the third field.
         description: free text after the identifier, before any ``KEY=value``.
         pname:       protein name (the description text minus UniProt keys).
         gname:       gene name (``GN=``).

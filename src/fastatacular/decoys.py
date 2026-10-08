@@ -470,16 +470,33 @@ def make_decoy_sequence(
 
 
 def _check_prefix(prefix: str) -> None:
-    if not isinstance(prefix, str) or not prefix or any(c.isspace() for c in prefix) or prefix.startswith(">"):
+    if (
+        not isinstance(prefix, str)
+        or not prefix
+        or any(c.isspace() for c in prefix)
+        or prefix.startswith(">")
+        or "|" in prefix
+    ):
         raise DecoyError(
             f"Invalid decoy prefix {prefix!r}",
-            hint="Use a non-empty prefix without whitespace, such as 'DECOY_' or 'rev_'",
+            hint="Use a non-empty prefix without whitespace or '|', such as 'DECOY_' or 'rev_'",
         )
 
 
 def _decoy_entry(entry: SequenceEntry, sequence: str, prefix: str) -> SequenceEntry:
+    """The decoy of ``entry``: its header fields with ``prefix`` on the identifier.
+
+    The target's header is parsed as is and only then prefixed, so the accession and
+    entry name stay the target's whatever the prefix, even one that re-parses differently
+    (``XXXpdb|1MBA|A``, glued to the database tag, reads as accession ``1MBA``).
+    """
     header, _ = _build_header_line(entry)
-    return _build_entry(_parse_header_line(">" + prefix + header[1:], 0), [sequence], 0)
+    parsed = _parse_header_line(header, 0)
+    parsed.identifier = prefix + parsed.identifier
+    parsed.raw_header = prefix + parsed.raw_header
+    if parsed.prefix is not None:
+        parsed.prefix = prefix + parsed.prefix
+    return _build_entry(parsed, [sequence], 0)
 
 
 def make_decoys(
@@ -497,15 +514,22 @@ def make_decoys(
     """Yield one decoy entry per target entry.
 
     The decoy's header is the target's header with ``prefix`` in front of the
-    identifier (``>sp|P12345|X_HUMAN ...`` becomes ``>DECOY_sp|P12345|X_HUMAN ...``),
-    re-parsed, so ``identifier`` and ``prefix`` carry the decoy prefix while
-    ``accession`` and the description fields are the target's.
+    identifier (``>sp|P12345|X_HUMAN ...`` becomes ``>DECOY_sp|P12345|X_HUMAN ...``).
+    ``identifier``, ``prefix`` and ``raw_header`` carry the decoy prefix, while
+    ``accession``, ``entry_name`` and the description fields are the target's, for
+    any prefix (``rev-pdb|1MBA|A`` keeps the accession ``1MBA_A``).
+
+    A written decoy file reads back with the same accession and entry name when the
+    prefix ends in a character other than a letter or digit (``DECOY_``, ``XXX_``,
+    ``REV__``). A prefix such as ``XXX`` glued to ``pdb|``/``gi|``/``pir||``/``prf||``
+    cannot be told apart from a database name and reads back as a generic ``db|ID`` id.
 
     Args:
         entries: Target entries, e.g. from :func:`~fastatacular.read_fasta` or a
             :class:`~fastatacular.FastaReader`. Consumed lazily.
         method: One of :data:`METHODS`.
-        prefix: Put in front of each decoy identifier.
+        prefix: Put in front of each decoy identifier. Must be non-empty, without
+            whitespace or ``|``.
         seed: Makes the output reproducible: the same seed, options and sequence
             always give the same decoy, whatever else is in the database.
             ``None`` draws a fresh random seed.

@@ -127,7 +127,9 @@ Exported from `fastatacular` (`__all__`):
   `raw_header`; if that gives the entry's current fields it is written verbatim
   (byte-exact round trip), otherwise the header is rebuilt, so
   `dataclasses.replace(entry, gname="X")` writes `GN=X`. A hand-built `raw_header`
-  that disagrees with the fields is ignored.
+  that disagrees with the fields is ignored. `prefix`/`accession`/`entry_name` are not
+  compared (`_HEADER_FIELDS`): a decoy with a custom prefix keeps the target's accession
+  although its header would re-parse differently.
 - **Header rebuild from `description`.** When `raw_header` is empty and `pname` is
   `None`, the writer uses the name text of `description` (before its first `KEY=`),
   then the structured fields and `extra`; `KEY=value` pairs in `description` are only

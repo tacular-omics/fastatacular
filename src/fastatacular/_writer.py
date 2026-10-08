@@ -17,11 +17,12 @@ if TYPE_CHECKING:
 
 _SEQ_LINE_WIDTH = 60
 
+# Fields a header line can carry. ``prefix``, ``accession`` and ``entry_name`` are not
+# here: they come from the identifier and a rebuilt header cannot write them either, so
+# they do not decide between ``raw_header`` and a rebuild. A decoy with a custom prefix
+# (``XXX_pdb|1MBA|A``, accession ``1MBA_A``) is thus still written verbatim.
 _HEADER_FIELDS = (
     "identifier",
-    "prefix",
-    "accession",
-    "entry_name",
     "description",
     "pname",
     "gname",
