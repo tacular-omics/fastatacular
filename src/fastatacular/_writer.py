@@ -79,7 +79,8 @@ def _build_header_line(entry: SequenceEntry) -> tuple[str, bool]:
         name = description[:first_key].rstrip() if first_key is not None else description
         if name:
             parts.append(name)
-        desc_extra = dict(pairs)
+        for key, value in pairs:
+            desc_extra.setdefault(key, value)  # first occurrence, as the reader
 
     if entry.os_name is not None:
         parts.append(f"OS={entry.os_name}")

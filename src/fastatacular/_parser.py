@@ -187,7 +187,13 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
         return header
 
     first_match_start, pairs = _split_kv(rest)
+    seen: set[str] = set()
     for key, value in pairs:
+        # A repeated key keeps its first value (``OS=Human OS=Mouse`` gives ``Human``);
+        # ``description`` and ``raw_header`` still hold every occurrence.
+        if key in seen:
+            continue
+        seen.add(key)
         if key == "GN":
             header.gname = value
         elif key == "OS":

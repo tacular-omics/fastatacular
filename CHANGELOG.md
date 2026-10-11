@@ -8,15 +8,23 @@ All notable changes to this project will be documented in this file.
 
 - `from_records(records)`, the inverse of `to_records`: builds `SequenceEntry` objects from
   flat dicts (e.g. `df.to_dict("records")`) so a data frame can be written back with
-  `write_fasta`. The header is rebuilt from the columns (identifier from
-  `prefix|accession|entry_name` when they no longer match `identifier`, then `pname`,
-  `OS=`, `OX=`, `GN=`, `PE=`, `SV=`, `extra`); `description` is used verbatim only when
-  none of those is set. `raw_header` and `length` are ignored. `None`, NaN and
-  `pandas.NA` count as missing; `9606.0` writes `OX=9606`. Bad values raise
-  `FastaWriteError` with the record index.
+  `write_fasta`. A record with `raw_header` is compared with the parse of that header and
+  only edited columns change it: unedited records are written byte for byte; an edited
+  `identifier` or `description` is used verbatim; an edited `prefix`/`accession`/
+  `entry_name` replaces only that token in the original identifier (gi, pdb and 4+ field
+  ids keep their other fields); edited `pname`/`OS`/`OX`/`GN`/`PE`/`SV`/`extra` are edited
+  in place in the original description (new keys appended, order and spacing kept).
+  Records without `raw_header` are built from the columns, with `description` used
+  verbatim when set. An identifier and its parts, or a description and the structured
+  columns, that were both set and disagree raise `FastaWriteError` with the record index,
+  as do bad values. `None`, `""`, NaN and `pandas.NA` count as missing; `9606.0` writes
+  `OX=9606`.
 
 ### Changed
 
+- A header key that appears more than once (`OS=Human ... OS=Mouse`) keeps its first
+  value in `os_name`, `gname`, `extra`, ... (it was the last). `description` and
+  `raw_header` still hold the full text.
 - Empty sequences are accepted. A header followed by another header or the end of input
   reads as an entry with sequence `""` (`read_fasta`, `FastaReader`, `FastaIndex`,
   `to_records` with length 0) instead of raising `FastaParseError`. `write_fasta` writes

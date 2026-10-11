@@ -168,15 +168,78 @@ def test_from_records_nan_and_float_ints() -> None:
     assert _write(from_records(records)) == ROUND_TRIP
 
 
-def test_from_records_columns_drive_the_header() -> None:
-    (rec,) = to_records(io.StringIO(ROUND_TRIP.split(">tr|")[0]))
-    rec.update(accession="Q99999", pname="Edited", gname=None, extra="KEY=v", raw_header="ignored", length=0)
-    (entry,) = from_records([rec])
-    assert entry.raw_header == "sp|Q99999|1433B_HUMAN Edited OS=Homo sapiens OX=9606 PE=1 SV=3 KEY=v"
-    # description is only used verbatim when no structured field is set
+# Unedited records write raw_header byte for byte, whatever its spacing or key order.
+VERBATIM = [
+    "sp|Q3SA23|Q3SA23_9VIRU Polyprotein OS=Hepatitis E virus 1  OX=0000 GN=g PE=4 SV=1",
+    "tr|A0A|NAME|extra Foo OS=H",
+    "gi|4557757|ref|NP_000240.1| mutL homolog 1 [Homo sapiens]",
+    "pdb|1MBA|A Chain A",
+    "plain_id",
+    "plain\tdesc after a tab",
+    "sp|P1|A_HUMAN X OS=Human OS=Mouse",
+    "x Name XX=1 OS=H OX=9606",
+]
+
+
+@pytest.mark.parametrize("header", VERBATIM)
+def test_from_records_unedited_is_verbatim(header: str) -> None:
+    text = f">{header}\nMK\n"
+    assert _write(from_records(to_records(io.StringIO(text)))) == text
+
+
+def test_repeated_key_keeps_first_value() -> None:
+    (entry,) = read_fasta(io.StringIO(">sp|P1|A X OS=Human OX=9606 XX=1 OS=Mouse XX=2\nMK\n"))
+    assert (entry.os_name, entry.extra) == ("Human", {"XX": "1"})
+
+
+def _edit(header: str, **changes: object) -> str:
+    (rec,) = to_records(io.StringIO(f">{header}\nMK\n"))
+    rec.update(changes)
+    return from_records([rec])[0].raw_header
+
+
+@pytest.mark.parametrize(
+    ("header", "changes", "expected"),
+    [
+        ("sp|P1|A_HUMAN X OS=H", {"identifier": "DECOY_sp|P1|A_HUMAN"}, "DECOY_sp|P1|A_HUMAN X OS=H"),
+        ("gi|4557757|ref|NP_000240.1| mutL", {"accession": "NP_999.1"}, "gi|4557757|ref|NP_999.1| mutL"),
+        ("tr|A0A|NAME|extra Foo", {"accession": "B0B"}, "tr|B0B|NAME|extra Foo"),
+        ("pdb|1MBA|A Chain", {"prefix": "rev_pdb"}, "rev_pdb|1MBA|A Chain"),
+        ("gi|229552|pdb|1MBA|A Chain", {"accession": "2XYZ_B"}, "gi|229552|pdb|2XYZ|B Chain"),
+        ("plain\tdesc", {"identifier": "p2"}, "p2\tdesc"),
+        ("sp|P1|A_HUMAN X OS=H GN=g", {"description": "Real desc"}, "sp|P1|A_HUMAN Real desc"),
+        ("sp|P1|A Poly OS=Virus 1  OX=0000 GN=g", {"gname": "NEW"}, "sp|P1|A Poly OS=Virus 1  OX=0000 GN=NEW"),
+        ("sp|P1|A Poly OS=Virus 1  OX=0000 GN=g", {"gname": None}, "sp|P1|A Poly OS=Virus 1  OX=0000"),
+        ("sp|P1|A Poly OS=Virus 1  OX=0000", {"pname": "New", "pe": 1.0}, "sp|P1|A New OS=Virus 1  OX=0000 PE=1"),
+        ("x Name XX=1 OS=H OX=9606", {"extra": "XX=2 YY=3"}, "x Name XX=2 OS=H OX=9606 YY=3"),
+        ("sp|P1|A X OS=H OS=M", {"os_name": ""}, "sp|P1|A X"),
+    ],
+)
+def test_from_records_edits_only_the_changed_token(header: str, changes: dict[str, object], expected: str) -> None:
+    assert _edit(header, **changes) == expected
+
+
+@pytest.mark.parametrize(
+    ("record", "match"),
+    [
+        ({"identifier": "sp|P2|A", "accession": "P3"}, "identifier 'sp|P2|A' and accession"),
+        ({"description": "Real desc", "gname": "ABC"}, "description and gname"),
+        ({"accession": "P1_X", "entry_name": "N"}, "cannot be written"),
+    ],
+)
+def test_from_records_conflicting_edits(record: dict[str, object], match: str) -> None:
+    with pytest.raises(FastaWriteError, match=re.escape(match)):
+        _edit("pdb|1MBA|A Chain" if "entry_name" in record else "sp|P1|A X GN=g", **record)
+
+
+def test_from_records_without_raw_header() -> None:
     (plain,) = from_records([{"identifier": "id", "description": "free text OS=Mouse", "sequence": "MK"}])
     assert (plain.pname, plain.os_name) == ("free text", "Mouse")
+    (built,) = from_records([{"prefix": "sp", "accession": "P1", "pname": "N", "gname": "G", "description": ""}])
+    assert built.raw_header == "sp|P1 N GN=G"
     assert from_records([{"identifier": "id"}])[0].sequence == ""
+    with pytest.raises(FastaWriteError, match="description and gname"):
+        from_records([{"identifier": "x", "description": "Real desc", "gname": "ABC"}])
 
 
 @pytest.mark.parametrize(
