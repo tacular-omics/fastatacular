@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] (2026-10-11)
+
 ### Added
 
 - `from_records(records)`, the inverse of `to_records`: builds `SequenceEntry` objects from
