@@ -35,8 +35,11 @@ All notable changes to this project will be documented in this file.
 
 - A header line with leading whitespace (`  >b`, `\t>b`) is read as a header, as in
   FastaFrames, instead of being appended to the previous entry's sequence. Leading whitespace
-  is ignored before checking for `>` and `;` on every line, in `read_fasta`, `FastaReader`
-  and `FastaIndex` (including `from_fai`).
+  is ignored before checking for `>`, `;` and a leading `#` (PEFF file header) on every line,
+  in `read_fasta`, `FastaReader` and `FastaIndex` (including `from_fai`).
+- Documentation: the README, `llms-full.txt` and `CLAUDE.md` described the old behaviour of
+  empty sequences (an error) and repeated header keys (last value kept); they now match the
+  code, and `from_records` is documented in `llms-full.txt` and `llms.txt`.
 
 ## [1.2.0] (2026-10-08)
 

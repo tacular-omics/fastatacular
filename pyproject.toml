@@ -1,7 +1,7 @@
 [project]
 name = "fastatacular"
 dynamic = ["version"]
-description = "A pure-Python library for reading and writing FASTA sequence files."
+description = "A pure-Python library for reading and writing FASTA sequence files, with UniProt header parsing, decoy databases and indexed access."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
@@ -10,14 +10,16 @@ authors = [
 ]
 license = "MIT"
 license-files = ["LICENSE"]
-keywords = ["fasta", "proteomics", "genomics", "bioinformatics", "sequence"]
+keywords = ["fasta", "proteomics", "genomics", "bioinformatics", "sequence", "uniprot", "decoy", "target-decoy", "mass-spectrometry", "faidx"]
 maintainers = [
     { name = "Patrick Garrett", email = "pgarrett@scripps.edu" }
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -28,6 +30,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/tacular-omics/fastatacular"
 Documentation = "https://github.com/tacular-omics/fastatacular#readme"
+"Web app" = "https://tacular-omics.github.io/fastatacular/"
 Repository = "https://github.com/tacular-omics/fastatacular"
 Issues = "https://github.com/tacular-omics/fastatacular/issues"
 Changelog = "https://github.com/tacular-omics/fastatacular/blob/main/CHANGELOG.md"
