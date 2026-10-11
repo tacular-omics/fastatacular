@@ -4,7 +4,16 @@ from pathlib import Path
 
 import pytest
 
-from fastatacular import RECORD_KEYS, FastaReader, SequenceEntry, read_fasta, to_records
+from fastatacular import (
+    RECORD_KEYS,
+    FastaReader,
+    FastaWriteError,
+    SequenceEntry,
+    from_records,
+    read_fasta,
+    to_records,
+    write_fasta,
+)
 
 FASTA = """>sp|P12345|EX_HUMAN Example protein OS=Homo sapiens OX=9606 GN=EX PE=1 SV=2 XX=1 YY=a b
 MKTAYIAKQR
@@ -111,3 +120,87 @@ def test_readme_example(fasta_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     ns: dict[str, object] = {}
     exec(_readme_block(), ns)
     assert ns["human"].height == 1  # type: ignore[attr-defined]
+    assert read_fasta("human_out.fasta") == read_fasta(fasta_path)[:1]
+
+
+# One entry per header style; every one is written by write_fasta in this exact form.
+ROUND_TRIP = """\
+>sp|P31946|1433B_HUMAN 14-3-3 protein beta/alpha OS=Homo sapiens OX=9606 GN=YWHAB PE=1 SV=3
+MTMDKSELVQ
+>tr|A0A024R161|A0A024R161_HUMAN Guanine nucleotide-binding protein OS=Homo sapiens OX=9606 PE=3 SV=1
+MGAQ
+>myid some desc
+MK
+>gi|4557757|ref|NP_000240.1| mutL homolog 1 [Homo sapiens]
+MSF
+>pdb|1MBA|A Chain A, Myoglobin
+GLS
+>x desc OS=Mus musculus FOO=bar BAZ=a b
+KK
+>empty_seq Nothing here
+>plain
+PEP
+>onlykv OS=Human
+"""
+
+
+def _write(entries: list[SequenceEntry]) -> str:
+    out = io.StringIO()
+    write_fasta(entries, out)
+    return out.getvalue()
+
+
+def test_from_records_round_trip() -> None:
+    entries = read_fasta(io.StringIO(ROUND_TRIP))
+    rebuilt = from_records(to_records(entries))
+    assert rebuilt == entries
+    assert _write(rebuilt) == ROUND_TRIP
+    assert rebuilt[6].sequence == ""
+
+
+def test_from_records_nan_and_float_ints() -> None:
+    """A data frame turns None into NaN and int columns with gaps into floats."""
+    nan = float("nan")
+    records = [
+        {k: nan if v is None else float(v) if k in ("ncbi_tax_id", "pe", "sv") else v for k, v in rec.items()}
+        for rec in to_records(io.StringIO(ROUND_TRIP))
+    ]
+    assert _write(from_records(records)) == ROUND_TRIP
+
+
+def test_from_records_columns_drive_the_header() -> None:
+    (rec,) = to_records(io.StringIO(ROUND_TRIP.split(">tr|")[0]))
+    rec.update(accession="Q99999", pname="Edited", gname=None, extra="KEY=v", raw_header="ignored", length=0)
+    (entry,) = from_records([rec])
+    assert entry.raw_header == "sp|Q99999|1433B_HUMAN Edited OS=Homo sapiens OX=9606 PE=1 SV=3 KEY=v"
+    # description is only used verbatim when no structured field is set
+    (plain,) = from_records([{"identifier": "id", "description": "free text OS=Mouse", "sequence": "MK"}])
+    assert (plain.pname, plain.os_name) == ("free text", "Mouse")
+    assert from_records([{"identifier": "id"}])[0].sequence == ""
+
+
+@pytest.mark.parametrize(
+    ("record", "match"),
+    [
+        ({"identifier": "a", "pe": "high"}, "pe must be an int"),
+        ({"identifier": "a", "ncbi_tax_id": 9606.5}, "ncbi_tax_id must be an int"),
+        ({"identifier": "a", "pe": True}, "pe must be an int"),
+        ({"description": "x"}, "no identifier"),
+        ({"identifier": "a", "extra": "no pairs"}, "extra must be"),
+        ({"identifier": "a", "pname": "x GN=Y"}, "pname"),
+        ({"identifier": "a b"}, "whitespace"),
+    ],
+)
+def test_from_records_bad_values(record: dict[str, object], match: str) -> None:
+    with pytest.raises(FastaWriteError, match=match) as info:
+        from_records([{"identifier": "ok"}, record])
+    assert info.value.index == 1
+
+
+def test_from_records_pandas_round_trip() -> None:
+    pd = pytest.importorskip("pandas")
+    entries = read_fasta(io.StringIO(ROUND_TRIP))
+    df = pd.DataFrame(to_records(entries))
+    assert from_records(df.to_dict("records")) == entries
+    df = df.convert_dtypes()  # pandas.NA and nullable Int64
+    assert from_records(df.to_dict("records")) == entries

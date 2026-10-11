@@ -81,10 +81,12 @@ def test_write_empty_identifier_raises():
         _write_str([entry])
 
 
-def test_write_empty_sequence_raises():
-    entry = SequenceEntry(identifier="x", sequence="")
-    with pytest.raises(FastaWriteError):
-        _write_str([entry])
+def test_write_empty_sequence_is_header_only():
+    entries = [SequenceEntry(identifier="x", sequence=""), SequenceEntry(identifier="y", sequence="MK")]
+    text = _write_str(entries)
+    assert text == ">x\n>y\nMK\n"
+    assert [e.sequence for e in read_fasta(io.StringIO(text))] == ["", "MK"]
+    assert _write_str(entries[:1], line_width=0) == ">x\n"
 
 
 def test_extra_keys_are_emitted():

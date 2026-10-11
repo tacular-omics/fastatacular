@@ -225,8 +225,8 @@ by_acc["P31946"]
   entry but the last to have the same length, and no comment or blank lines inside a
   sequence; otherwise it raises `FastaError` (rewrite the file with `write_fasta` first).
   `from_fai` checks each entry's header against the `.fai` name but does not re-count
-  residues, so rebuild the `.fai` whenever the FASTA changes. Entries with no sequence
-  raise (samtools skips them). samtools and pysam refuse a FASTA file that starts with a
+  residues, so rebuild the `.fai` whenever the FASTA changes. An entry with no sequence
+  gets a row with length 0. samtools and pysam refuse a FASTA file that starts with a
   byte-order mark, so the `.fai` of such a file works only with `FastaIndex`.
 
 ## Tables with pandas or polars
@@ -240,11 +240,14 @@ installed.)
 import pandas as pd
 import polars as pl
 
-from fastatacular import to_records
+from fastatacular import from_records, to_records, write_fasta
 
 records = to_records("human.fasta")   # a path, an open text handle, or entries
 df = pd.DataFrame(records)
 human = pl.DataFrame(records).filter(pl.col("ncbi_tax_id") == 9606)
+
+# and back: from_records is the inverse of to_records
+write_fasta(from_records(human.to_dicts()), "human_out.fasta")
 ```
 
 `FastaReader.to_records()` and `SequenceEntry.to_record()` give the same dicts. Every
@@ -262,6 +265,16 @@ record has these keys, in this order (`fastatacular.RECORD_KEYS`):
 | `raw_header` | str | the header line without `>` |
 | `length` | int | sequence length |
 | `sequence` | str | the residues |
+
+`from_records(records)` turns such dicts (or `df.to_dict("records")`) back into
+`SequenceEntry` objects for `write_fasta`. Missing keys, `None`, NaN and `pandas.NA` count
+as absent. The header is rebuilt from the columns, so editing a column changes the
+output: the identifier is `prefix|accession|entry_name` when those columns no longer
+match the `identifier` column (otherwise the `identifier` column), followed by `pname`,
+`OS=`, `OX=`, `GN=`, `PE=`, `SV=` and the `extra` pairs. A record with none of those but a
+`description` keeps the description verbatim. `raw_header` and `length` are ignored.
+Integer columns may hold floats (`9606.0` writes `OX=9606`); a bad value (`pe="high"`)
+raises `FastaWriteError` with the record's `index`.
 
 The same fields in [pefftacular](https://github.com/tacular-omics/pefftacular) records have
 other names where each package follows its own model. Rename these to put both in one

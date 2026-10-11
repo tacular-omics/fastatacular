@@ -138,9 +138,9 @@ def test_sequence_before_header_raises():
     assert exc.value.line == 1
 
 
-def test_empty_sequence_raises():
-    with pytest.raises(FastaParseError):
-        _read_str(">id description\n>next other\nACDE\n")
+def test_empty_sequence_parses():
+    entries = _read_str(">id description\n>next other\nACDE\n>last\n")
+    assert [(e.identifier, e.sequence) for e in entries] == [("id", ""), ("next", "ACDE"), ("last", "")]
 
 
 def test_empty_header_raises():

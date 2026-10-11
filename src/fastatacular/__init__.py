@@ -4,7 +4,7 @@ from fastatacular._compression import Compression
 from fastatacular._index import FastaIndex
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import FastaReader, read_fasta
-from fastatacular._records import RECORD_KEYS, to_records
+from fastatacular._records import RECORD_KEYS, from_records, to_records
 from fastatacular._writer import write_fasta
 from fastatacular.decoys import (
     MarkovModel,
@@ -31,6 +31,7 @@ __all__ = [
     "MarkovModel",
     "RECORD_KEYS",
     "SequenceEntry",
+    "from_records",
     "is_decoy",
     "load_markov_model",
     "make_decoy_sequence",

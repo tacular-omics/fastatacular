@@ -162,12 +162,6 @@ def _prepare_entry(entry: SequenceEntry, index: int, line_width: int) -> tuple[s
         raise FastaWriteError(
             "SequenceEntry has an empty identifier", index=index, hint="Set identifier to a non-empty token"
         )
-    if not entry.sequence:
-        raise FastaWriteError(
-            f"SequenceEntry {entry.identifier!r} has an empty sequence",
-            index=index,
-            hint="A FASTA entry needs at least one residue",
-        )
     if any(c.isspace() for c in entry.identifier):
         raise FastaWriteError(
             f"SequenceEntry identifier {entry.identifier!r} contains whitespace",
@@ -192,7 +186,7 @@ def _prepare_entry(entry: SequenceEntry, index: int, line_width: int) -> tuple[s
         _check_rebuilt_header(entry, header, index)
 
     seq = entry.sequence
-    step = line_width if line_width > 0 else len(seq)
+    step = line_width if line_width > 0 else max(len(seq), 1)
     if any(seq[i] in ">;" for i in range(0, len(seq), step)):
         # The reader would take such a line as a header or a comment.
         raise FastaWriteError(
@@ -207,6 +201,8 @@ def _write_prepared(items: list[tuple[SequenceEntry, str, int]], out: IO[str]) -
     for entry, header, step in items:
         seq = entry.sequence
         out.write(header + "\n")
+        # An empty sequence writes no sequence line, so the next header follows directly
+        # (the reader gives back sequence "").
         for i in range(0, len(seq), step):
             out.write(seq[i : i + step] + "\n")
 
@@ -324,7 +320,8 @@ def write_fasta(
 
     ``dest`` may be a path or an already-opened text or binary file object.
     ``line_width`` controls sequence wrapping; pass ``0`` (or any value ``<= 0``)
-    to emit each sequence on a single line.
+    to emit each sequence on a single line. An entry with an empty sequence is
+    written as its header line alone, which reads back as sequence ``""``.
 
     Every entry is validated before anything is written: if one is unwritable,
     ``FastaWriteError`` is raised (its ``index`` names the entry), a path

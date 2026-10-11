@@ -338,6 +338,8 @@ class _Decoyer:
 
     def _decoy(self, seq: str) -> str:
         n = len(seq)
+        if n == 0:
+            return seq  # an empty target gives an empty decoy
         lo = min(self.nterm, n)
         hi = max(lo, n - self.cterm)
         method = self.method
@@ -496,7 +498,7 @@ def _decoy_entry(entry: SequenceEntry, sequence: str, prefix: str) -> SequenceEn
     parsed.raw_header = prefix + parsed.raw_header
     if parsed.prefix is not None:
         parsed.prefix = prefix + parsed.prefix
-    return _build_entry(parsed, [sequence], 0)
+    return _build_entry(parsed, [sequence])
 
 
 def make_decoys(

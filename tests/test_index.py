@@ -304,10 +304,10 @@ def test_undecodable_header(tmp_path: Path) -> None:
 def test_entry_errors_are_raised_on_access(tmp_path: Path) -> None:
     index = FastaIndex(_write(tmp_path, "n", ">a\n>b\nMK\n"))
     assert index["b"].sequence == "MK"
-    with pytest.raises(FastaParseError, match="Entry 'a' at byte 0.*no sequence data"):
-        index["a"]
-    with pytest.raises(FastaError, match="no sequence data"):
-        index.write_fai()
+    assert index["a"].sequence == ""
+    fai = index.write_fai()
+    assert fai.read_text() == "a\t0\t3\t0\t0\nb\t2\t6\t2\t3\n"
+    assert FastaIndex.from_fai(index.path)["a"].sequence == ""
 
 
 def test_undecodable_entry(tmp_path: Path) -> None:
@@ -378,7 +378,8 @@ def test_fai_blank_lines_ignored_and_bom(tmp_path: Path) -> None:
 
 def test_fai_rejects_header_only_last_entry(tmp_path: Path) -> None:
     index = FastaIndex(_write(tmp_path, "h", ">a\nMK\n>b"))
-    with pytest.raises(FastaError, match="no sequence data"):
+    assert index["b"].sequence == ""
+    with pytest.raises(FastaError, match="no line ending"):
         index.write_fai()
 
 
