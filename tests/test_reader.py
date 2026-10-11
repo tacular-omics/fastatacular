@@ -248,3 +248,48 @@ def test_keys_must_start_a_word(header, pname, extra, os_name):
 def test_decoy_and_contaminant_prefixes_keep_the_accession(identifier, prefix, accession, entry_name):
     [e] = _read_str(f">{identifier} Name OS=Homo sapiens\nA\n")
     assert (e.prefix, e.accession, e.entry_name) == (prefix, accession, entry_name)
+
+
+# Leading whitespace is ignored on every line, so an indented '>' starts a header
+# (as in FastaFrames) in every parser path: text handles, paths, chunked reads, FastaIndex.
+_INDENTED = {
+    "mid_file": ">a\nMK\n  >b\nPE\n",
+    "first_header": "  >a\nMK\n>b\nPE\n",
+    "tabs": "\t>a\n\tMK\t\n \t>b\n PE \n",
+    "no_trailing_newline": ">a\nMK\n  >b\nPE",
+    "comment": ">a\nMK\n  ;note\n\t>b\n  PE\n",
+}
+
+
+@pytest.mark.parametrize("text", list(_INDENTED.values()), ids=list(_INDENTED))
+def test_indented_header_text_handle(text):
+    assert [(e.identifier, e.sequence) for e in _read_str(text)] == [("a", "MK"), ("b", "PE")]
+
+
+@pytest.mark.parametrize("text", list(_INDENTED.values()), ids=list(_INDENTED))
+def test_indented_header_path_and_reader(tmp_path, text):
+    path = tmp_path / "x.fasta"
+    path.write_text(text)
+    expected = [("a", "MK"), ("b", "PE")]
+    assert [(e.identifier, e.sequence) for e in read_fasta(path)] == expected
+    with FastaReader(path) as reader:
+        assert [(e.identifier, e.sequence) for e in reader] == expected
+    with path.open("rb") as fh:
+        assert [(e.identifier, e.sequence) for e in read_fasta(fh)] == expected
+
+
+@pytest.mark.parametrize("chunk", range(1, 12))
+@pytest.mark.parametrize("text", list(_INDENTED.values()), ids=list(_INDENTED))
+def test_indented_header_across_chunk_boundaries(tmp_path, monkeypatch, text, chunk):
+    from fastatacular import _parser
+
+    monkeypatch.setattr(_parser, "_CHUNK_CHARS", chunk)
+    path = tmp_path / "x.fasta"
+    path.write_text(text)
+    assert [(e.identifier, e.sequence) for e in read_fasta(path)] == [("a", "MK"), ("b", "PE")]
+
+
+def test_indented_header_line_number_in_errors():
+    with pytest.raises(FastaParseError) as exc:
+        _read_str(">a\nMK\n  >\nPE\n")
+    assert exc.value.line == 3

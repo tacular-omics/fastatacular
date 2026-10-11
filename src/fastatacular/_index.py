@@ -6,6 +6,7 @@ import io
 import logging
 import mmap
 import os
+import re
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Literal, cast
@@ -130,18 +131,17 @@ class FastaIndex(Mapping[str, SequenceEntry]):
                 return
             with mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
                 start = 3 if mm[:3] == _BOM else 0
-                h = start if mm[start : start + 1] == b">" else mm.find(b"\n>", start)
-                if h != start and h != -1:
-                    h += 1
+                first = _FIRST_HEADER.match(mm, start)
+                h = first.end() - 1 if first is not None else _next_header(mm, start)
                 _check_bytes_preamble(mm[start : size if h == -1 else h], self.path)
                 while h != -1:
                     eol = mm.find(b"\n", h)
                     header_end = size if eol == -1 else eol
-                    nxt = -1 if eol == -1 else mm.find(b"\n>", eol)
-                    end = size if nxt == -1 else nxt + 1
+                    nxt = -1 if eol == -1 else _next_header(mm, eol)
+                    end = size if nxt == -1 else nxt
                     identifier = _identifier(mm[h + 1 : header_end], h, self.path)
                     self._add(identifier, h, end)
-                    h = -1 if nxt == -1 else nxt + 1
+                    h = nxt
         self._report_skipped()
 
     def _add(self, identifier: str, start: int, end: int) -> None:
@@ -352,18 +352,31 @@ class FastaIndex(Mapping[str, SequenceEntry]):
                     hstart = mm.rfind(b"\n", 0, offset - 1) + 1
                     if hstart == 0 and mm[:3] == _BOM:
                         hstart = 3
-                    if mm[hstart : hstart + 1] != b">":
+                    found = _FIRST_HEADER.match(mm, hstart)
+                    if found is None or found.end() > offset - 1:
                         raise _stale(fai, name, offset)
+                    hstart = found.end() - 1
                     header = mm[hstart + 1 : offset - 1].rstrip(b"\r")
                     if _identifier(header, hstart, index.path) != name:
                         raise _stale(fai, name, offset)
-                    nxt = mm.find(b"\n>", offset - 1)
-                    rows.append((hstart, size if nxt == -1 else nxt + 1, name))
+                    nxt = _next_header(mm, offset - 1)
+                    rows.append((hstart, size if nxt == -1 else nxt, name))
         rows.sort()  # file order for iteration, and "first" means first in the file
         for hstart, end, name in rows:
             index._add(name, hstart, end)
         index._report_skipped()
         return index
+
+
+# A '>' at the start of a line, after optional leading whitespace (as the parser allows).
+_FIRST_HEADER = re.compile(rb"[ \t\r\f\v]*>")
+_HEADER_AFTER_NL = re.compile(rb"\n[ \t\r\f\v]*>")
+
+
+def _next_header(mm: mmap.mmap, pos: int) -> int:
+    """Return the offset of the next line-starting (maybe indented) ``>`` after ``pos``, or -1."""
+    found = _HEADER_AFTER_NL.search(mm, pos)
+    return -1 if found is None else found.end() - 1
 
 
 def _require_plain(path: Path, compression: Compression = "infer") -> None:

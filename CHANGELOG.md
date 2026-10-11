@@ -31,6 +31,13 @@ All notable changes to this project will be documented in this file.
   such an entry as its header line alone, which reads back identically, and
   `FastaIndex.write_fai` gives it a row with length 0. Decoys of an empty target are empty.
 
+### Fixed
+
+- A header line with leading whitespace (`  >b`, `\t>b`) is read as a header, as in
+  FastaFrames, instead of being appended to the previous entry's sequence. Leading whitespace
+  is ignored before checking for `>` and `;` on every line, in `read_fasta`, `FastaReader`
+  and `FastaIndex` (including `from_fai`).
+
 ## [1.2.0] (2026-10-08)
 
 ### Added
