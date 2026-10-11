@@ -434,3 +434,15 @@ def test_accession_key_ncbi_gi(tmp_path: Path) -> None:
     assert list(index) == ["NP_000240.1", "AAC04434.1", "P12345", "Q00001"]
     for key in index:
         assert index[key].accession == key
+
+
+def test_indented_headers_are_indexed(tmp_path):
+    path = tmp_path / "x.fasta"
+    path.write_text("  >a\nMK\n\t>b\n PE \n")
+    index = FastaIndex(path)
+    assert list(index) == ["a", "b"]
+    assert (index["a"].sequence, index["b"].sequence) == ("MK", "PE")
+    assert index.locate("a")[0] == 2
+    path.write_text("  >a\nMK\n\t>b\nPE\n")  # .fai needs whitespace-free sequence lines
+    loaded = FastaIndex.from_fai(path, FastaIndex(path).write_fai())
+    assert [(k, loaded[k].sequence) for k in loaded] == [("a", "MK"), ("b", "PE")]

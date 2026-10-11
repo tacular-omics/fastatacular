@@ -444,6 +444,15 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
     try:
         for line_no, line in enumerate(fh, start=1):
             first = line[:1]
+            if first == "\ufeff" and line_no == 1:
+                # UTF-8 byte-order mark read through a plain ``utf-8`` text handle.
+                line = line[1:]
+                first = line[:1]
+            if first.isspace():
+                # Leading whitespace is ignored on every line, so an indented
+                # ``>`` still starts a header (as in FastaFrames).
+                line = line.lstrip()
+                first = line[:1]
             if first == ">":
                 if header is not None:
                     yield _build_entry(header, seq_chunks)
@@ -453,15 +462,6 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
             if first == ";":
                 # Comment line (NCBI / legacy FASTA convention) — skip.
                 continue
-            if first == "\ufeff" and line_no == 1:
-                # UTF-8 byte-order mark read through a plain ``utf-8`` text handle.
-                line = line[1:]
-                first = line[:1]
-                if first == ">":
-                    header = _parse_header_line(line, line_no)
-                    continue
-                if first == ";":
-                    continue
             if first == "#" and header is None:
                 # PEFF file header (``# PEFF 1.0``, ``# //``) before the first entry — skip.
                 continue
@@ -489,6 +489,9 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
 
 # Characters read per ``read()`` call by the whole-record path reader.
 _CHUNK_CHARS = 1 << 20
+# A header line with leading whitespace, and whitespace after the last line break.
+_INDENTED_HEADER = re.compile(r"\n[^\S\n]+>")
+_TRAILING_INDENT = re.compile(r"\n[^\S\n]+\Z")
 
 
 def _iter_path_entries(fh: IO[str], *, compressed: bool = False) -> Iterator[SequenceEntry]:
@@ -510,7 +513,29 @@ def _iter_path_entries(fh: IO[str], *, compressed: bool = False) -> Iterator[Seq
         if chunk.startswith("\ufeff"):
             # UTF-8 byte-order mark read through a plain ``utf-8`` text handle.
             chunk = chunk[1:] or fh.read(_CHUNK_CHARS)
+        tail = ""  # indentation at the end of the previous chunk, maybe before a '>'
         while chunk:
+            # An indented header (``  >b``) splits like ``>b``: drop the indentation.
+            # Indentation at the end of a chunk is held back until the next one shows
+            # whether a '>' follows it.
+            chunk = tail + chunk
+            line_start = pending[-1].endswith("\n")
+            if line_start:
+                chunk = "\n" + chunk
+            chunk = _INDENTED_HEADER.sub("\n>", chunk)
+            cut = _TRAILING_INDENT.search(chunk)
+            if cut is not None:
+                tail, chunk = chunk[cut.start() + 1 :], chunk[: cut.start() + 1]
+            else:
+                tail = ""
+            if line_start:
+                chunk = chunk[1:]
+            if not chunk:
+                more = fh.read(_CHUNK_CHARS)
+                if not more:
+                    break
+                chunk = more
+                continue
             if "\n>" in chunk or (chunk[0] == ">" and pending[-1].endswith("\n")):
                 pieces = ("".join(pending) + chunk).split("\n>")
                 pending = [pieces.pop()]
@@ -528,6 +553,7 @@ def _iter_path_entries(fh: IO[str], *, compressed: bool = False) -> Iterator[Seq
             f"Cannot read the input after line {max(header_line - 1, 0)}: {e}",
             hint="FASTA input must be UTF-8 text, optionally gzip, bzip2 or xz compressed",
         ) from e
+    pending.append(tail)
     last = "".join(pending)
     if header_line == 0:
         _check_preamble(last)
@@ -545,7 +571,8 @@ def _check_preamble(text: str) -> int:
     lines = text.split("\n")
     for line_no in range(1, len(lines)):
         line = lines[line_no]
-        if not line or line.isspace() or line[0] in ";#":
+        line = line.lstrip()
+        if not line or line[0] in ";#":
             continue
         raise FastaParseError(
             "Sequence data appears before any '>' header",
@@ -568,7 +595,8 @@ def _record_entry(record: str, header_line: int, *, final: bool = False) -> Sequ
         # Comment lines, whitespace, '*', '-', ...: the line-by-line rules.
         chunks = []
         for line in body.split("\n"):
-            if not line or line.isspace() or line[0] == ";":
+            line = line.lstrip()
+            if not line or line[0] == ";":
                 continue
             chunks.append("".join(line.split()))
         sequence = "".join(chunks)
