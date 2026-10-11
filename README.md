@@ -6,21 +6,31 @@
 [![Python](https://img.shields.io/pypi/pyversions/fastatacular)](https://pypi.org/project/fastatacular/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22926358.svg)](https://doi.org/10.5281/zenodo.22926358)
 
-A small, dependency-free library for reading and writing [FASTA](https://en.wikipedia.org/wiki/FASTA_format) sequence files in Python. It's built for proteomics and genomics pipelines that need fast, predictable FASTA parsing without pulling in a bioinformatics megapackage.
+fastatacular is a pure-Python library with no dependencies for reading and writing
+[FASTA](https://en.wikipedia.org/wiki/FASTA_format) sequence files. Each record becomes a
+frozen `SequenceEntry` whose header is parsed into typed fields: the identifier, the
+database prefix, accession and entry name of pipe-delimited identifiers
+(`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`), and the UniProt description keys
+`OS=`, `OX=`, `GN=`, `PE=` and `SV=`. The library also reads compressed files, writes
+headers back unchanged, builds target-decoy databases, gives random access by identifier
+or accession through a samtools-compatible `.fai` index, and converts entries to and from
+flat records for pandas or polars. It is intended for proteomics and genomics pipelines
+and requires Python 3.12 or later.
 
-It understands UniProt-style description keys (`OS=`, `OX=`, `GN=`, `PE=`, `SV=`) and pipe-delimited identifiers (`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`) out of the box, so you get structured fields instead of a header string to parse yourself.
+## Documentation
 
-**Web app:** the [FASTA Toolkit](https://tacular-omics.github.io/fastatacular/) makes decoys, checks decoy quality, cleans up, merges and converts FASTA files in your browser (nothing is uploaded). To browse entries, use the [FASTA Viewer](https://pgarrett-scripps.github.io/fastaviewer/).
-
-## Highlights
-
-- **Zero dependencies** — pure Python, nothing else to install.
-- **Two ways to read** — `read_fasta` for the whole file at once, `FastaReader` to stream entries lazily without loading everything into memory.
-- **Compressed input** — `.gz`, `.bz2` and `.xz` files are read directly (detected from the file's magic bytes).
-- **UniProt headers parsed for you** — accession, organism, gene name, protein existence, and sequence version come back as typed fields, not a string you have to split yourself.
-- **Round-trip safe** — entries produced by `read_fasta` write back out byte-for-byte compatible headers.
-- **Actionable parse errors** — `FastaParseError` reports the offending line number and surrounding context.
-- **Shares its API shape with [pefftacular](https://github.com/tacular-omics/pefftacular)**, the PEFF (PSI Extended FASTA) sibling library, so switching formats doesn't mean relearning the interface.
+- This README: installation, quick start and the reference for reading, writing,
+  header parsing, indexing and records.
+- [docs/decoys.md](https://github.com/tacular-omics/fastatacular/blob/main/docs/decoys.md):
+  decoy methods, options, the Markov models and decoy quality on the human proteome.
+- [llms-full.txt](https://github.com/tacular-omics/fastatacular/blob/main/llms-full.txt):
+  the complete usage guide, with every public name, signature and runnable example.
+- [CHANGELOG.md](https://github.com/tacular-omics/fastatacular/blob/main/CHANGELOG.md):
+  release history.
+- [FASTA Toolkit](https://tacular-omics.github.io/fastatacular/): a web app built on
+  fastatacular that makes decoys, checks decoy quality, cleans up, merges and converts
+  FASTA files in the browser (files are not uploaded). To browse entries, use the
+  [FASTA Viewer](https://pgarrett-scripps.github.io/fastaviewer/).
 
 ## Install
 
@@ -28,33 +38,64 @@ It understands UniProt-style description keys (`OS=`, `OX=`, `GN=`, `PE=`, `SV=`
 pip install fastatacular
 ```
 
-Dev install:
-
-```bash
-just install
-```
-
 ## Quick start
 
-**read_fasta** — load everything into memory at once:
+Write a FASTA file, then read it back:
 
 ```python
-from fastatacular import read_fasta
+from fastatacular import SequenceEntry, read_fasta, write_fasta
+
+write_fasta(
+    [
+        SequenceEntry(
+            identifier="sp|P12345|EX_HUMAN",
+            sequence="MKTIIALSYIFCLVFA",
+            pname="Example protein",
+            os_name="Homo sapiens",
+            ncbi_tax_id=9606,
+            gname="EXMP",
+            pe=1,
+            sv=2,
+        ),
+        SequenceEntry(identifier="seq2", sequence="MPEPTIDEK"),
+    ],
+    "proteins.fasta",
+)
 
 entries = read_fasta("proteins.fasta")
 for entry in entries:
-    print(entry.identifier, len(entry.sequence))
+    print(entry.identifier, entry.accession, len(entry.sequence))
+# sp|P12345|EX_HUMAN P12345 16
+# seq2 None 9
 ```
 
-**FastaReader** — iterate lazily without loading the full file:
+`read_fasta` returns a list. `FastaReader` yields one entry at a time without loading
+the whole file:
 
 ```python
 from fastatacular import FastaReader
 
 with FastaReader("proteins.fasta") as reader:
     for entry in reader:
-        process(entry)
+        print(entry.identifier, entry.sequence)
 ```
+
+A `str` argument is always a file path. To parse FASTA text, wrap it in `io.StringIO`:
+
+```python
+import io
+
+from fastatacular import read_fasta
+
+entries = read_fasta(io.StringIO(">a\nMKV\n>b\n  >c\nPE\n"))
+[(e.identifier, e.sequence) for e in entries]
+# [('a', 'MKV'), ('b', ''), ('c', 'PE')]
+```
+
+As the example shows, a header followed directly by another header (or by the end of
+the file) gives an entry with an empty sequence, and a header line with leading
+whitespace is still read as a header. `write_fasta` writes an entry with an empty
+sequence as its header line alone, so it reads back identically.
 
 **Compressed files** are read transparently: gzip, bzip2 and xz, detected from the magic
 bytes, not the file name. Pipes, FIFOs and `/dev/stdin` work too:
@@ -85,20 +126,20 @@ Each entry is a `SequenceEntry`:
 
 | Field | Type | Description |
 |---|---|---|
-| `identifier` | `str` | Token immediately after `>` (e.g. `sp|P12345|EX_HUMAN`) |
-| `sequence` | `str` | Concatenated sequence with whitespace stripped |
-| `prefix` | `str \| None` | Database prefix (`sp`, `tr`, `gi`, ...) when the id is pipe-delimited |
-| `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` ids; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`); the third field of NCBI `pir\|\|ENTRY` and `prf\|\|NAME` (`S71500` from `pir\|\|S71500` or `gi\|7428543\|pir\|\|S71500`) |
-| `entry_name` | `str \| None` | Third pipe field on UniProt ids (e.g. `EX_HUMAN`), or the fifth on `gi\|N\|sp\|P12345\|EX_HUMAN`; none for PDB chains |
-| `description` | `str \| None` | Free text after the identifier |
-| `pname` | `str \| None` | Protein name (description text, minus `KEY=value` pairs) |
+| `identifier` | `str` | Header text after `>` up to the first whitespace (e.g. `sp\|P12345\|EX_HUMAN`) |
+| `sequence` | `str` | Sequence lines joined, with all whitespace removed; `""` for a header with no sequence lines |
+| `prefix` | `str \| None` | Database prefix (`sp`, `tr`, `gi`, ...) when the identifier is pipe-delimited |
+| `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` identifiers; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`); the third field of NCBI `pir\|\|ENTRY` and `prf\|\|NAME` (`S71500` from `pir\|\|S71500` or `gi\|7428543\|pir\|\|S71500`) |
+| `entry_name` | `str \| None` | Third pipe field on UniProt identifiers (e.g. `EX_HUMAN`), or the fifth on `gi\|N\|sp\|P12345\|EX_HUMAN`; none for PDB chains |
+| `description` | `str \| None` | Header text after the identifier, including any `KEY=value` pairs |
+| `pname` | `str \| None` | Protein name (the description before its first `KEY=value` pair) |
 | `gname` | `str \| None` | Gene name (`GN=`) |
 | `os_name` | `str \| None` | Organism name (`OS=`) |
 | `ncbi_tax_id` | `int \| None` | NCBI taxonomy ID (`OX=`) |
 | `pe` | `int \| None` | Protein existence level (`PE=`) |
 | `sv` | `int \| None` | Sequence version (`SV=`) |
 | `extra` | `dict[str, str]` | Any other `KEY=value` pairs found in the header |
-| `raw_header` | `str` | The original header line (without leading `>`) |
+| `raw_header` | `str` | The header line as read, without the leading `>`; `""` on an entry you construct |
 
 ## UniProt-style headers
 
@@ -119,7 +160,10 @@ entry.pe             # 1
 entry.sv             # 2
 ```
 
-Non-standard `KEY=value` pairs are captured in `entry.extra`. Headers with no `KEY=value` tokens leave `description` and `pname` populated and `extra` empty.
+Other `KEY=value` pairs are kept in `entry.extra`. A header without `KEY=value` pairs
+fills `description` and `pname` and leaves `extra` empty. When a key appears more than
+once (`OS=Human ... OS=Mouse`), the first value is used; `description` and `raw_header`
+still hold the full text.
 
 ## Writing
 
@@ -296,7 +340,7 @@ frame:
 | entry name | `entry_name` | `id` |
 | protein name, gene | `pname`, `gname` | `pname`, `gname` |
 | organism name | `os_name` | `tax_name` |
-| taxon id, PE, SV | `ncbi_tax_id`, `pe`, `sv` | `ncbi_tax_id`, `pe`, `sv` |
+| taxonomy ID, PE, SV | `ncbi_tax_id`, `pe`, `sv` | `ncbi_tax_id`, `pe`, `sv` |
 | other keys | `extra`, `KEY=value` pairs | `extra`, `\Key=value` pairs |
 | length, residues | `length`, `sequence` | `length`, `sequence` |
 

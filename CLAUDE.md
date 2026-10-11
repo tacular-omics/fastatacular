@@ -68,7 +68,7 @@ Data flow (read): text lines -> `_iter_entries` skips blank lines and `;` commen
 `>` line goes to `_parse_header_line` (identifier = text up to the first whitespace;
 `_UNIPROT_ID` / `_PIPE_ID` regexes fill `prefix`/`accession`/`entry_name`;
 `_KV_PATTERN` pulls `KEY=value` pairs) -> all whitespace is removed from sequence lines and they are joined ->
-`_build_entry` makes a `SequenceEntry`, raising if the sequence is empty.
+`_build_entry` makes a `SequenceEntry` (the sequence may be `""`).
 
 Data flow (write): `_prepare_entry` validates every entry and builds its header first (nothing is
 written if any fails) -> header is
@@ -103,6 +103,8 @@ Exported from `fastatacular` (`__all__`):
   only logger.
 - `to_records(source)` / `FastaReader.to_records()` / `SequenceEntry.to_record()`: flat
   dicts with the keys of `RECORD_KEYS` (a stable contract: add keys only at a major).
+  `from_records(records)` is the inverse; with `raw_header` it changes only the edited
+  columns in that header (`_records.py`).
   README "Tables with pandas or polars" lists them; `tests/test_records.py` execs it.
 - `__version__`.
 
@@ -154,8 +156,9 @@ Exported from `fastatacular` (`__all__`):
   peeked, so FIFOs work; `bz2`/`lzma` are imported lazily because some Pythons lack them). Decode errors and corrupt
   compressed streams become `FastaParseError` chained to the original error.
 - `#` lines before the first header (PEFF file header) are skipped; later `#` lines are sequence data.
-- An entry with no sequence lines (including the last one in the file) raises
-  `FastaParseError`; `;` comment lines and blank or whitespace-only lines are skipped anywhere; a leading UTF-8 BOM is ignored.
+- An entry with no sequence lines (including the last one in the file) has sequence
+  `""`; `write_fasta` writes it as the header line alone. Leading whitespace is ignored
+  before checking for `>`, `;` and `#`, so an indented header is a header. `;` comment lines and blank or whitespace-only lines are skipped anywhere; a leading UTF-8 BOM is ignored.
 - **Decoy reproducibility is a contract.** Each decoy's `random.Random` is seeded from
   `blake2b(sequence, key=seed)`; changing the draw order changes every user's decoys, so
   treat it like a format change (CHANGELOG entry, tests in `tests/test_decoys.py`).

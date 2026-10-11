@@ -41,6 +41,7 @@ Everything public is importable from the top-level package:
         MarkovModel, train_markov_model, load_markov_model,
         DecoyError,        # bad decoy option or model (FastaError subclass)
         to_records,        # flat dicts for pandas/polars (section 8c)
+        from_records,      # the inverse: flat dicts back to SequenceEntry (section 8c)
         FastaIndex,        # random access by identifier/accession, samtools .fai (section 8d)
         RECORD_KEYS,       # the record keys, in order
         Compression,       # Literal["infer", "gzip", "bz2", "xz"] | None (type alias)
@@ -148,7 +149,7 @@ importable but its names are re-exported at the top level).
 | field        | type             | meaning                                                                 |
 |--------------|------------------|-------------------------------------------------------------------------|
 | identifier   | str              | text after `>` up to first whitespace, e.g. `sp|P12345|EX_HUMAN`        |
-| sequence     | str              | sequence lines with all whitespace removed, concatenated                |
+| sequence     | str              | sequence lines with all whitespace removed, concatenated; may be ''     |
 | prefix       | str or None      | database tag of a pipe id: `sp`, `tr`, `gi`, ...                        |
 | accession    | str or None      | second pipe field: `P12345` in `sp|P12345|EX_HUMAN`                     |
 | entry_name   | str or None      | third field, only for exactly-three-field ids `db|ACC|NAME`             |
@@ -293,6 +294,10 @@ parse as int are kept as strings in `extra` rather than raising.
 ### 5.5 What the reader skips and keeps
 
 - Blank lines are skipped anywhere.
+- Leading whitespace is ignored before checking for `>`, `;` and `#`, so an indented
+  header line (`  >b`, `\t>b`) is a header, not sequence data.
+- A header followed by another header or the end of the input gives an entry with an
+  empty sequence (`''`).
 - Lines starting with `;` (legacy/NCBI comments) are skipped anywhere.
 - Lines starting with `#` before the first `>` header (a PEFF file header such as
   `# PEFF 1.0`) are skipped, so a PEFF file reads as plain FASTA: identifier, sequence and
@@ -306,6 +311,8 @@ parse as int are kept as strings in `extra` rather than raising.
     ['a', 'b']
     >>> one(">x\nmk*\n").sequence
     'mk*'
+    >>> [(y.identifier, y.sequence) for y in read_fasta(io.StringIO(">a\nMK\n>b\n  >c\nPE\n"))]
+    [('a', 'MK'), ('b', ''), ('c', 'PE')]
 
 
 ## 6. Writing
@@ -426,19 +433,14 @@ Cases that raise:
 |-----------------------------------------------|--------------------------------------------|
 | sequence line before the first `>`            | Sequence data appears before any '>' header|
 | a `>` line with nothing after it (or spaces)  | Empty FASTA header                         |
-| a header with no sequence lines (any entry,   | Entry 'ID' has no sequence data            |
-| including the last one in the file)           | (line = the header's line number)          |
 
-    >>> try:
-    ...     read_fasta(io.StringIO(">a\nMK\n>b\n>c\nPE\n"))
-    ... except FastaParseError as err:
-    ...     print(err.line, err)
-    3 Line 3: Entry 'b' has no sequence data
+A header with no sequence lines is not an error: it reads as an entry with an empty
+sequence (section 5.5).
 
 With FastaReader the error is raised lazily: entries before the bad one are yielded
 first.
 
-    >>> with FastaReader(io.StringIO(">a\nMK\n>b\n>c\nPE\n")) as reader:
+    >>> with FastaReader(io.StringIO(">a\nMK\n>\nPE\n")) as reader:
     ...     it = iter(reader)
     ...     print(next(it).identifier)
     ...     try:
@@ -456,11 +458,10 @@ UnicodeDecodeError / OSError / EOFError.
 ### 7.2 FastaWriteError
 
     >>> from fastatacular import FastaWriteError
-    >>> try:
-    ...     write_fasta([SequenceEntry("x", "")], io.StringIO())
-    ... except FastaWriteError as err:
-    ...     print(err)
-    Entry 0: SequenceEntry 'x' has an empty sequence
+    >>> out = io.StringIO()
+    >>> write_fasta([SequenceEntry("x", "")], out)   # empty sequence: header line only
+    >>> out.getvalue()
+    '>x\n'
     >>> try:
     ...     write_fasta([SequenceEntry("", "MK")], io.StringIO())
     ... except FastaWriteError as err:
@@ -584,6 +585,34 @@ fastatacular does not depend on pandas or polars; pass the list to them yourself
     >>> rec["accession"], rec["ncbi_tax_id"], rec["extra"], rec["length"]
     ('P1', 9606, 'XX=1', 2)
 
+    from_records(records: Iterable[Mapping[str, object]]) -> list[SequenceEntry]
+
+The inverse of to_records: turns records (e.g. `df.to_dict("records")`) back into
+SequenceEntry objects for write_fasta. Keys are those of RECORD_KEYS; other keys and
+`length` are ignored. None, "", float NaN and pandas.NA count as missing.
+A record with `raw_header` is compared with the parse of that header, so only edited
+columns change the written header:
+- nothing edited: `raw_header` is written byte for byte;
+- `identifier` edited: used as is; an edited `prefix`, `accession` or `entry_name`
+  replaces only that token in the original identifier (gi, pdb and longer pipe
+  identifiers keep their other fields);
+- `description` edited: used as is; edited pname, gname, os_name, ncbi_tax_id, pe, sv
+  or extra change the original description in place (a cleared key is removed, a new
+  one appended; order and spacing stay).
+A record without `raw_header` is built from its columns: the identifier (or
+prefix|accession|entry_name), then `description` as is, or pname, OS=, OX=, GN=, PE=,
+SV= and the extra pairs. An identifier and its parts, or a description and the
+structured columns, that were both set and disagree raise FastaWriteError with the
+record's `index`, as do bad values (`pe="high"`). `9606.0` is accepted as 9606.
+
+    >>> from fastatacular import from_records
+    >>> rec["gname"] = "NEW"
+    >>> [e] = from_records([rec])
+    >>> e.raw_header, e.gname
+    ('sp|P1|A_HUMAN Name OX=9606 XX=1 GN=NEW', 'NEW')
+    >>> from_records([{"identifier": "x", "pname": "Name", "ncbi_tax_id": 9606.0, "sequence": "MK"}])[0].raw_header
+    'x Name OX=9606'
+
 
 ## 8d. Random access (FastaIndex)
 
@@ -610,8 +639,8 @@ fastatacular does not depend on pandas or polars; pass the list to them yourself
   that is not a regular file (FIFO, pipe, directory) -> FastaError; a missing file ->
   FileNotFoundError.
 - write_fai raises FastaError for entries with uneven line lengths or blank/comment
-  lines inside the sequence (samtools rejects those too), and for entries with no
-  sequence (samtools skips them). Trailing spaces count in the line width, not the
+  lines inside the sequence (samtools rejects those too). An entry with no sequence
+  gets a row with length 0. Trailing spaces count in the line width, not the
   residues, as in samtools. The output matches samtools faidx byte for byte.
   samtools refuses a FASTA that starts with a BOM; its .fai works only with FastaIndex.
 - from_fai checks each header line against its .fai name, not the residue counts:
@@ -649,11 +678,12 @@ fastatacular does not depend on pandas or polars; pass the list to them yourself
 7. `entry_name` is only set for exactly three pipe fields with no spaces in the third;
    `accession` is the second field.
 8. Non-integer OX/PE/SV values go into `extra` as strings instead of raising.
-9. Duplicate keys: the last occurrence wins (typed field or `extra` entry overwritten).
+9. Duplicate keys: the first occurrence wins (typed field or `extra` entry);
+   `description` and `raw_header` keep the full text.
 10. SequenceEntry is frozen and not hashable (`__hash__` is None); use `dataclasses.replace` to modify and
     key dicts by `identifier`/`accession`, not by the entry.
-11. Entries with an empty sequence cannot be read (FastaParseError) or written
-    (FastaWriteError).
+11. A header with no sequence lines reads as an entry with sequence `''`; such an entry
+    is written as its header line alone and reads back identically.
 12. Encoding is fixed to UTF-8 for paths (plain or .gz/.bz2/.xz). For other encodings
     open the file yourself and pass the handle.
 
