@@ -118,10 +118,8 @@ def test_path_reader_error_line_numbers(tmp_path: Path) -> None:
     with pytest.raises(FastaParseError) as info:
         read_fasta(path)
     assert (info.value.line, info.value.context) == (4, "ACD")
-    path.write_text(">a\nM\n\n>b\n;only a comment\n>c\nK\n")
-    with pytest.raises(FastaParseError, match="no sequence data") as info:
-        read_fasta(path)
-    assert info.value.line == 4
+    path.write_text(">a\nM\n\n>b\n;only a comment\n>c\nK\n>d")
+    assert [e.sequence for e in read_fasta(path)] == ["M", "", "K", ""]
 
 
 def test_path_reader_streams_through_fasta_reader(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

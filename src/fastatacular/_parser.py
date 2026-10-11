@@ -219,15 +219,9 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
     return header
 
 
-def _build_entry(header: _ParsedHeader, seq_chunks: list[str], header_line_no: int) -> SequenceEntry:
+def _build_entry(header: _ParsedHeader, seq_chunks: list[str]) -> SequenceEntry:
+    # A header with no residue lines (next line is a header, or end of input) gives "".
     sequence = "".join(chunk for chunk in seq_chunks if chunk)
-    if not sequence:
-        raise FastaParseError(
-            f"Entry {header.identifier!r} has no sequence data",
-            line=header_line_no,
-            context=header.raw_header,
-            hint="Add sequence lines after the header, or remove the header",
-        )
     return SequenceEntry(
         identifier=header.identifier,
         sequence=sequence,
@@ -439,7 +433,6 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
     """
     header: _ParsedHeader | None = None
     seq_chunks: list[str] = []
-    header_line_no: int = 0
     line_no = 0
 
     try:
@@ -447,9 +440,8 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
             first = line[:1]
             if first == ">":
                 if header is not None:
-                    yield _build_entry(header, seq_chunks, header_line_no)
+                    yield _build_entry(header, seq_chunks)
                 header = _parse_header_line(line, line_no)
-                header_line_no = line_no
                 seq_chunks = []
                 continue
             if first == ";":
@@ -461,7 +453,6 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
                 first = line[:1]
                 if first == ">":
                     header = _parse_header_line(line, line_no)
-                    header_line_no = line_no
                     continue
                 if first == ";":
                     continue
@@ -487,7 +478,7 @@ def _iter_entries(fh: IO[str]) -> Iterator[SequenceEntry]:
         ) from e
 
     if header is not None:
-        yield _build_entry(header, seq_chunks, header_line_no)
+        yield _build_entry(header, seq_chunks)
 
 
 # Characters read per ``read()`` call by the whole-record path reader.
@@ -575,7 +566,7 @@ def _record_entry(record: str, header_line: int, *, final: bool = False) -> Sequ
                 continue
             chunks.append("".join(line.split()))
         sequence = "".join(chunks)
-    return _build_entry(header, [sequence], header_line)
+    return _build_entry(header, [sequence])
 
 
 class FastaReader:

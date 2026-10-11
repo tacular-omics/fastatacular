@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `from_records(records)`, the inverse of `to_records`: builds `SequenceEntry` objects from
+  flat dicts (e.g. `df.to_dict("records")`) so a data frame can be written back with
+  `write_fasta`. The header is rebuilt from the columns (identifier from
+  `prefix|accession|entry_name` when they no longer match `identifier`, then `pname`,
+  `OS=`, `OX=`, `GN=`, `PE=`, `SV=`, `extra`); `description` is used verbatim only when
+  none of those is set. `raw_header` and `length` are ignored. `None`, NaN and
+  `pandas.NA` count as missing; `9606.0` writes `OX=9606`. Bad values raise
+  `FastaWriteError` with the record index.
+
+### Changed
+
+- Empty sequences are accepted. A header followed by another header or the end of input
+  reads as an entry with sequence `""` (`read_fasta`, `FastaReader`, `FastaIndex`,
+  `to_records` with length 0) instead of raising `FastaParseError`. `write_fasta` writes
+  such an entry as its header line alone, which reads back identically, and
+  `FastaIndex.write_fai` gives it a row with length 0. Decoys of an empty target are empty.
+
 ## [1.2.0] (2026-10-08)
 
 ### Added

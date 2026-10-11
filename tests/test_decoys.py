@@ -576,3 +576,11 @@ def test_make_decoys_matches_make_decoy_sequence(seqs: list[str], method: str, s
     assert [len(s) for s in a] == [len(s) for s in seqs]
     if method != "debruijn":
         assert a == [make_decoy_sequence(s, method=method, seed=seed) for s in seqs]  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("method", METHODS)
+def test_empty_target_gives_empty_decoy(method: str) -> None:
+    targets = [SequenceEntry(identifier="e", sequence=""), SequenceEntry(identifier="f", sequence="MKPEPTIDER")]
+    decoys = list(make_decoys(targets, method=method))  # ty: ignore[invalid-argument-type]
+    assert decoys[0].sequence == ""
+    assert make_decoy_sequence("", method=method) == ""  # ty: ignore[invalid-argument-type]

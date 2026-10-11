@@ -244,7 +244,8 @@ class FastaIndex(Mapping[str, SequenceEntry]):
         Trailing spaces on a sequence line count toward the line width but not the
         residues, as in samtools.
 
-        Every entry needs sequence data: samtools skips an entry with none, this raises.
+        An entry with no sequence gets a row with length 0 (linebases and linewidth 0).
+        Its header line must end with a line break, so the offset points past it.
         A file that starts with a UTF-8 byte-order mark gets a ``.fai`` that
         :meth:`from_fai` reads, but samtools and pysam refuse such a FASTA file; strip
         the BOM first if they must read it.
@@ -253,7 +254,7 @@ class FastaIndex(Mapping[str, SequenceEntry]):
             The path written.
 
         Raises:
-            FastaError: An entry has no sequence, irregular line lengths, or characters
+            FastaError: A header-only last entry without a line ending, irregular line lengths, or characters
                 that samtools would not count as residues (whitespace inside a line,
                 comments inside the sequence). Nothing is written.
         """
@@ -270,13 +271,15 @@ class FastaIndex(Mapping[str, SequenceEntry]):
         name = self._names[key]
         eol = record.find(b"\n")
         if eol == -1:
-            raise FastaError(f"Entry {name!r} has no sequence data")
+            err = FastaError(f"Entry {name!r} is a header at the end of the file with no line ending")
+            err.add_note("hint: add a newline at the end of the file, or rewrite it with write_fasta")
+            raise err
         offset = start + eol + 1
         lines = record[eol + 1 :].split(b"\n")
         while lines and not lines[-1].strip():
             lines.pop()  # blank lines after the sequence
         if not lines:
-            raise FastaError(f"Entry {name!r} has no sequence data")
+            return f"{name}\t0\t{offset}\t0\t0\n"
         widths = [len(line) + 1 for line in lines]
         bases = [len(line.rstrip(b" \t\r")) for line in lines]
         for line, n in zip(lines, bases, strict=True):

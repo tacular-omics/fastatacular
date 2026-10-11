@@ -39,7 +39,7 @@ def test_errors_carry_a_hint_note():
     assert info.value.hint
     assert any(note.startswith("hint: ") for note in info.value.__notes__)
     with pytest.raises(FastaWriteError) as winfo:
-        write_fasta([SequenceEntry(identifier="x", sequence="")], io.StringIO())
+        write_fasta([SequenceEntry(identifier="x y", sequence="M")], io.StringIO())
     assert winfo.value.hint
 
 
@@ -57,7 +57,7 @@ def test_sequence_entry_is_explicitly_unhashable():
 
 def test_write_validates_every_entry_before_writing(tmp_path):
     good = SequenceEntry(identifier="ok", sequence="ACDE")
-    bad = SequenceEntry(identifier="bad", sequence="")
+    bad = SequenceEntry(identifier="bad", sequence="A C")
     buf = io.StringIO()
     with pytest.raises(FastaWriteError):
         write_fasta([good, bad], buf)
@@ -71,7 +71,7 @@ def test_write_validates_every_entry_before_writing(tmp_path):
 
 def test_write_error_names_the_entry_index():
     good = SequenceEntry(identifier="ok", sequence="ACDE")
-    bad = SequenceEntry(identifier="bad", sequence="")
+    bad = SequenceEntry(identifier="bad", sequence="A C")
     with pytest.raises(FastaWriteError, match=r"^Entry 2: "):
         write_fasta([good, good, bad], io.StringIO())
     with pytest.raises(FastaWriteError) as info:
