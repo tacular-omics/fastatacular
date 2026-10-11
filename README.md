@@ -267,14 +267,23 @@ record has these keys, in this order (`fastatacular.RECORD_KEYS`):
 | `sequence` | str | the residues |
 
 `from_records(records)` turns such dicts (or `df.to_dict("records")`) back into
-`SequenceEntry` objects for `write_fasta`. Missing keys, `None`, NaN and `pandas.NA` count
-as absent. The header is rebuilt from the columns, so editing a column changes the
-output: the identifier is `prefix|accession|entry_name` when those columns no longer
-match the `identifier` column (otherwise the `identifier` column), followed by `pname`,
-`OS=`, `OX=`, `GN=`, `PE=`, `SV=` and the `extra` pairs. A record with none of those but a
-`description` keeps the description verbatim. `raw_header` and `length` are ignored.
-Integer columns may hold floats (`9606.0` writes `OX=9606`); a bad value (`pe="high"`)
-raises `FastaWriteError` with the record's `index`.
+`SequenceEntry` objects for `write_fasta`. `None`, `""`, NaN and `pandas.NA` count as
+missing. A record that still has its `raw_header` keeps it, and only the columns you
+edited change it:
+
+- nothing edited: `raw_header` is written byte for byte;
+- `identifier` edited: written as is; an edited `prefix`, `accession` or `entry_name`
+  replaces only that token (`gi|4557757|ref|NP_000240.1|` keeps its `gi|...|ref|` fields,
+  a `pdb` accession `1MBA_A` goes back to `1MBA|A`);
+- `description` edited: written as is; edited `pname`, `gname`, `os_name`, `ncbi_tax_id`,
+  `pe`, `sv` or `extra` are changed in place in the original description (a cleared one
+  is removed, a new one appended; order, spacing and other text stay).
+
+Records without `raw_header` are built from the columns: the identifier (or
+`prefix|accession|entry_name`), then `description` as is, or `pname`, `OS=`, `OX=`, `GN=`,
+`PE=`, `SV=` and the `extra` pairs. Setting both an identifier and parts, or a description
+and structured columns, that disagree raises `FastaWriteError` with the record's `index`,
+as does a bad value (`pe="high"`). Integer columns may hold floats (`9606.0` writes `OX=9606`).
 
 The same fields in [pefftacular](https://github.com/tacular-omics/pefftacular) records have
 other names where each package follows its own model. Rename these to put both in one
