@@ -13,14 +13,13 @@ database prefix, accession and entry name of pipe-delimited identifiers
 (`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`), and the UniProt description keys
 `OS=`, `OX=`, `GN=`, `PE=` and `SV=`. The library also reads compressed files, writes
 headers back unchanged, builds target-decoy databases, gives random access by identifier
-or accession through a samtools-compatible `.fai` index, and converts entries to and from
-flat records for pandas or polars. It is intended for proteomics and genomics pipelines
+or accession through a samtools-compatible `.fai` index. It is intended for proteomics and genomics pipelines
 and requires Python 3.12 or later.
 
 ## Documentation
 
 - This README: installation, quick start and the reference for reading, writing,
-  header parsing, indexing and records.
+  header parsing and indexing.
 - [docs/decoys.md](https://github.com/tacular-omics/fastatacular/blob/main/docs/decoys.md):
   decoy methods, options, the Markov models and decoy quality on the human proteome.
 - [llms-full.txt](https://github.com/tacular-omics/fastatacular/blob/main/llms-full.txt):
@@ -272,77 +271,6 @@ by_acc["P31946"]
   residues, so rebuild the `.fai` whenever the FASTA changes. An entry with no sequence
   gets a row with length 0. samtools and pysam refuse a FASTA file that starts with a
   byte-order mark, so the `.fai` of such a file works only with `FastaIndex`.
-
-## Tables with pandas or polars
-
-`to_records(source)` returns one plain `dict` per entry, so any data-frame library can
-take the result directly. fastatacular does not ship or require pandas or polars;
-install whichever you use. (The test suite runs these examples only when the library is
-installed.)
-
-```python
-import pandas as pd
-import polars as pl
-
-from fastatacular import from_records, to_records, write_fasta
-
-records = to_records("human.fasta")   # a path, an open text handle, or entries
-df = pd.DataFrame(records)
-human = pl.DataFrame(records).filter(pl.col("ncbi_tax_id") == 9606)
-
-# and back: from_records is the inverse of to_records
-write_fasta(from_records(human.to_dicts()), "human_out.fasta")
-```
-
-`FastaReader.to_records()` and `SequenceEntry.to_record()` give the same dicts. Every
-record has these keys, in this order (`fastatacular.RECORD_KEYS`):
-
-| key | type | value |
-|---|---|---|
-| `identifier` | str | text after `>` up to the first whitespace |
-| `prefix`, `accession`, `entry_name` | str or None | `sp`, `P12345`, `NAME` from `sp\|P12345\|NAME` |
-| `pname` | str or None | protein name (description before the first `KEY=`) |
-| `gname`, `os_name` | str or None | `GN=`, `OS=` |
-| `ncbi_tax_id`, `pe`, `sv` | int or None | `OX=`, `PE=`, `SV=` |
-| `description` | str or None | everything after the identifier |
-| `extra` | str or None | other `KEY=value` pairs, space-separated |
-| `raw_header` | str | the header line without `>` |
-| `length` | int | sequence length |
-| `sequence` | str | the residues |
-
-`from_records(records)` turns such dicts (or `df.to_dict("records")`) back into
-`SequenceEntry` objects for `write_fasta`. `None`, `""`, NaN and `pandas.NA` count as
-missing. A record that still has its `raw_header` keeps it, and only the columns you
-edited change it:
-
-- nothing edited: `raw_header` is written byte for byte;
-- `identifier` edited: written as is; an edited `prefix`, `accession` or `entry_name`
-  replaces only that token (`gi|4557757|ref|NP_000240.1|` keeps its `gi|...|ref|` fields,
-  a `pdb` accession `1MBA_A` goes back to `1MBA|A`);
-- `description` edited: written as is; edited `pname`, `gname`, `os_name`, `ncbi_tax_id`,
-  `pe`, `sv` or `extra` are changed in place in the original description (a cleared one
-  is removed, a new one appended; order, spacing and other text stay).
-
-Records without `raw_header` are built from the columns: the identifier (or
-`prefix|accession|entry_name`), then `description` as is, or `pname`, `OS=`, `OX=`, `GN=`,
-`PE=`, `SV=` and the `extra` pairs. Setting both an identifier and parts, or a description
-and structured columns, that disagree raises `FastaWriteError` with the record's `index`,
-as does a bad value (`pe="high"`). Integer columns may hold floats (`9606.0` writes `OX=9606`).
-
-The same fields in [pefftacular](https://github.com/tacular-omics/pefftacular) records have
-other names where each package follows its own model. Rename these to put both in one
-frame:
-
-| field | fastatacular | pefftacular |
-|---|---|---|
-| database prefix | `prefix` | `prefix` |
-| accession | `accession` | `db_unique_id` |
-| entry name | `entry_name` | `id` |
-| protein name, gene | `pname`, `gname` | `pname`, `gname` |
-| organism name | `os_name` | `tax_name` |
-| taxonomy ID, PE, SV | `ncbi_tax_id`, `pe`, `sv` | `ncbi_tax_id`, `pe`, `sv` |
-| other keys | `extra`, `KEY=value` pairs | `extra`, `\Key=value` pairs |
-| length, residues | `length`, `sequence` | `length`, `sequence` |
 
 ## Error handling
 

@@ -26,8 +26,6 @@ PEPTIDE
 MMM
 """
 
-README = Path(__file__).resolve().parents[1] / "README.md"
-
 
 @pytest.fixture
 def fasta_path(tmp_path: Path) -> Path:
@@ -93,12 +91,6 @@ def test_record_from_constructed_entry() -> None:
     assert rec["identifier"] == "x" and rec["length"] == 2 and rec["raw_header"] == ""
 
 
-def _readme_block() -> str:
-    text = README.read_text(encoding="utf-8")
-    section = text.split("## Tables with pandas or polars", 1)[1]
-    return re.search(r"```python\n(.*?)```", section, re.S).group(1)  # type: ignore[union-attr]
-
-
 def test_pandas(fasta_path: Path) -> None:
     pd = pytest.importorskip("pandas")
     df = pd.DataFrame(to_records(fasta_path))
@@ -113,14 +105,13 @@ def test_polars(fasta_path: Path) -> None:
     assert df.height == 4
 
 
-def test_readme_example(fasta_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    pytest.importorskip("pandas")
-    pytest.importorskip("polars")
-    monkeypatch.chdir(fasta_path.parent)
-    ns: dict[str, object] = {}
-    exec(_readme_block(), ns)
-    assert ns["human"].height == 1  # type: ignore[attr-defined]
-    assert read_fasta("human_out.fasta") == read_fasta(fasta_path)[:1]
+def test_polars_filter_round_trip(fasta_path: Path, tmp_path: Path) -> None:
+    pl = pytest.importorskip("polars")
+    human = pl.DataFrame(to_records(fasta_path)).filter(pl.col("ncbi_tax_id") == 9606)
+    assert human.height == 1
+    out = tmp_path / "human_out.fasta"
+    write_fasta(from_records(human.to_dicts()), out)
+    assert read_fasta(out) == read_fasta(fasta_path)[:1]
 
 
 # One entry per header style; every one is written by write_fasta in this exact form.
