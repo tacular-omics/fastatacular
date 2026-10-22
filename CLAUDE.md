@@ -105,7 +105,8 @@ Exported from `fastatacular` (`__all__`):
   dicts with the keys of `RECORD_KEYS` (a stable contract: add keys only at a major).
   `from_records(records)` is the inverse; with `raw_header` it changes only the edited
   columns in that header (`_records.py`).
-  README "Tables with pandas or polars" lists them; `tests/test_records.py` execs it.
+  `tests/test_records.py` covers both, including pandas and polars data frames
+  (those tests skip when the library is not installed).
 - `__version__`.
 
 ## Conventions
