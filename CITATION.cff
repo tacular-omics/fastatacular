@@ -12,8 +12,8 @@ abstract: >-
   shape, and is intended for proteomics and genomics pipelines that need
   lightweight, dependency-free FASTA parsing. It requires Python 3.12 or
   later.
-version: "1.3.0"
-date-released: "2026-10-11"
+version: "1.3.1"
+date-released: "2026-10-26"
 authors:
   - family-names: Garrett
     given-names: Patrick T.

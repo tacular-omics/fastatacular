@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] (2026-10-26)
+
+### Changed
+
+- The README no longer carries the pandas and polars tables section.
+- Updated development and test dependencies. No changes to the library.
+
 ## [1.3.0] (2026-10-11)
 
 ### Added
