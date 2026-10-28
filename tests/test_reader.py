@@ -120,6 +120,60 @@ def test_ncbi_gi_accession(identifier: str, prefix: str, accession: str, entry_n
     assert (e.identifier, e.prefix, e.accession, e.entry_name) == (identifier, prefix, accession, entry_name)
 
 
+def test_rcsb_entity_header():
+    """The header from issue #36: the identifier is the entity id, not ``1MBA_1|Chain``."""
+    [e] = _read_str(">1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina\nSLSAAEADLA\n")
+    assert e.identifier == "1MBA_1"
+    assert e.accession == "1MBA_1"
+    assert e.prefix is None
+    assert e.entry_name is None
+    assert e.description == "Chain A|MYOGLOBIN|Aplysia limacina"
+    assert e.pname == "Chain A|MYOGLOBIN|Aplysia limacina"
+    assert e.raw_header == "1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina"
+    assert e.sequence == "SLSAAEADLA"
+
+
+@pytest.mark.parametrize(
+    ("header", "identifier", "description"),
+    [
+        # One chain, several chains, and an author-assigned chain label.
+        ("1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina", "1MBA_1", "Chain A|MYOGLOBIN|Aplysia limacina"),
+        ("6M0J_1|Chains A, B|Spike|SARS-CoV-2", "6M0J_1", "Chains A, B|Spike|SARS-CoV-2"),
+        ("7ABC_2|Chain A[auth B]|Nanobody|Lama glama", "7ABC_2", "Chain A[auth B]|Nanobody|Lama glama"),
+        # Only the field right after the first one counts, and it must be ``Chain``/``Chains``.
+        ("1MBA_1|Chaining|MYOGLOBIN", "1MBA_1|Chaining|MYOGLOBIN", None),
+        ("1MBA_1|A|Chain A|MYOGLOBIN", "1MBA_1|A|Chain", "A|MYOGLOBIN"),
+    ],
+)
+def test_rcsb_identifier_boundary(header: str, identifier: str, description: str | None) -> None:
+    [e] = _read_str(f">{header}\nACDEFG\n")
+    assert (e.identifier, e.description) == (identifier, description)
+
+
+@pytest.mark.parametrize(
+    ("header", "identifier", "accession"),
+    [
+        # The older RCSB/NCBI form keeps ENTRY_CHAIN: its second field is not ``Chain``.
+        ("pdb|1MBA|A Chain A,  Myoglobin", "pdb|1MBA|A", "1MBA_A"),
+        ("gi|229552|pdb|1MBA|A Chain A", "gi|229552|pdb|1MBA|A", "1MBA_A"),
+        # A description that happens to start with "Chain" is still a description.
+        ("sp|P02185|MYG_PHYCD Chain A of myoglobin", "sp|P02185|MYG_PHYCD", "P02185"),
+    ],
+)
+def test_pdb_pipe_form_not_affected(header: str, identifier: str, accession: str) -> None:
+    [e] = _read_str(f">{header}\nACDEFG\n")
+    assert (e.identifier, e.accession) == (identifier, accession)
+
+
+def test_rcsb_entity_header_from_a_path(tmp_path):
+    """The chunked path reader agrees with the line-by-line handle reader (two readers)."""
+    text = ">1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina\nSLSAAEADLA\n>6M0J_1|Chains A, B|Spike|SARS-CoV-2\nACDE\n"
+    p = tmp_path / "rcsb.fasta"
+    p.write_text(text)
+    assert read_fasta(p) == _read_str(text)
+    assert [e.accession for e in read_fasta(p)] == ["1MBA_1", "6M0J_1"]
+
+
 def test_extra_keys_captured():
     [e] = _read_str(">id name part FOO=bar BAZ=qux extra trailing\nA\n")
     assert e.extra == {"FOO": "bar", "BAZ": "qux extra trailing"}

@@ -9,7 +9,7 @@ from typing import IO, TYPE_CHECKING
 
 from fastatacular._compression import _KINDS, Compression, _check_compression, _DetachingText, _is_text_handle
 from fastatacular._models import SequenceEntry
-from fastatacular._parser import _MODULES, _parse_header_line, _ParsedHeader, _split_kv
+from fastatacular._parser import _MODULES, _RCSB_ID, _parse_header_line, _ParsedHeader, _split_kv
 from fastatacular.errors import FastaError, FastaParseError, FastaWriteError
 
 if TYPE_CHECKING:
@@ -105,7 +105,13 @@ def _build_header_line(entry: SequenceEntry) -> tuple[str, bool]:
         if typed.get(k) is None and k not in entry.extra:
             parts.append(f"{k}={v}")
 
-    return ">" + " ".join(parts), True
+    first, *rest = parts
+    if rest and _RCSB_ID.match(f"{first}|{rest[0]}"):
+        # RCSB entity header: join the name back with '|', not a space. A space would give
+        # ``1MBA_1 Chain A|...``, which reads back with no accession at all.
+        first = f"{first}|{rest.pop(0)}"
+
+    return ">" + " ".join([first, *rest]), True
 
 
 _TYPED_FIELDS = (

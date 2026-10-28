@@ -111,6 +111,15 @@ _EMPTY_MIDDLE_ID = re.compile(rf"^(?P<prefix>{_TAGS}(?:pir|prf))\|\|(?P<accessio
 # NCBI-ish ``db|ID`` or ``db|ID|...`` identifier — accept the leading two fields.
 _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
 
+# Current RCSB PDB entity header: ``ENTRY_ENTITY|Chain(s) X|MOLECULE|ORGANISM``
+# (``1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina``). Its second field holds a space, so the
+# usual whitespace split would cut the identifier inside ``Chain A`` and the pipe rules
+# would then read ``Chain`` as the accession. The identifier is the first field instead,
+# and the rest of the line is the description. Anchored on ``|Chain`` right after the
+# first field, so the older ``pdb|1MBA|A Chain A`` form (second field ``1MBA``) is
+# untouched and keeps its ``1MBA_A`` accession.
+_RCSB_ID = re.compile(r"^(?P<identifier>[^|\s]+)\|Chains?\s")
+
 
 def _split_identifier(identifier: str) -> tuple[str, str, str | None] | None:
     """Return ``(prefix, accession, entry_name)`` of a pipe-delimited identifier, or None.
@@ -173,15 +182,23 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
             "Empty FASTA header", line=line_no, context=line, hint="Put an identifier right after '>'"
         )
 
-    # Split on the first run of any whitespace (space or tab), as UniProt, BLAST,
-    # Biopython and samtools do.
-    identifier, *tail = stripped.split(maxsplit=1)
-    rest = tail[0] if tail else ""
+    if rcsb := _RCSB_ID.match(stripped):
+        # RCSB PDB entity header: the identifier is the first pipe field (see ``_RCSB_ID``).
+        identifier = rcsb["identifier"]
+        rest = stripped[rcsb.end("identifier") + 1 :]
+    else:
+        # Split on the first run of any whitespace (space or tab), as UniProt, BLAST,
+        # Biopython and samtools do.
+        identifier, *tail = stripped.split(maxsplit=1)
+        rest = tail[0] if tail else ""
 
     header = _ParsedHeader(identifier=identifier, raw_header=raw)
 
     if (parts := _split_identifier(identifier)) is not None:
         header.prefix, header.accession, header.entry_name = parts
+    elif rcsb:
+        # ``1MBA_1`` is the entity's accession at the RCSB; it carries no db prefix.
+        header.accession = identifier
 
     if not rest:
         return header

@@ -125,7 +125,7 @@ Each entry is a `SequenceEntry`:
 
 | Field | Type | Description |
 |---|---|---|
-| `identifier` | `str` | Header text after `>` up to the first whitespace (e.g. `sp\|P12345\|EX_HUMAN`) |
+| `identifier` | `str` | Header text after `>` up to the first whitespace (e.g. `sp\|P12345\|EX_HUMAN`); for an RCSB PDB entity header (`1MBA_1\|Chain A\|...`) the first pipe field |
 | `sequence` | `str` | Sequence lines joined, with all whitespace removed; `""` for a header with no sequence lines |
 | `prefix` | `str \| None` | Database prefix (`sp`, `tr`, `gi`, ...) when the identifier is pipe-delimited |
 | `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` identifiers; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`); the third field of NCBI `pir\|\|ENTRY` and `prf\|\|NAME` (`S71500` from `pir\|\|S71500` or `gi\|7428543\|pir\|\|S71500`) |
