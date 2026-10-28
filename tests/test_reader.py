@@ -174,6 +174,160 @@ def test_rcsb_entity_header_from_a_path(tmp_path):
     assert [e.accession for e in read_fasta(p)] == ["1MBA_1", "6M0J_1"]
 
 
+# --------------------------------------------------- bare accessions (issue #37)
+
+
+def test_ncbi_defline_fields():
+    """The NCBI RefSeq/GenPept defline from issue #37: bare accession, organism in brackets."""
+    [e] = _read_str(">NP_000549.1 hemoglobin subunit alpha [Homo sapiens]\nMVLSPADKTN\n")
+    assert e.identifier == "NP_000549.1"
+    assert e.accession == "NP_000549.1"
+    assert e.prefix is None
+    assert e.entry_name is None
+    assert e.os_name == "Homo sapiens"
+    assert e.ncbi_tax_id is None  # an NCBI defline carries no taxonomy id
+    # ``pname`` is the description before its first ``KEY=`` token, brackets and all.
+    assert e.pname == "hemoglobin subunit alpha [Homo sapiens]"
+    assert e.description == "hemoglobin subunit alpha [Homo sapiens]"
+    assert e.sequence == "MVLSPADKTN"
+
+
+@pytest.mark.parametrize(
+    ("header", "accession", "os_name"),
+    [
+        # Every RefSeq protein prefix, with and without the version.
+        ("NP_000549.1 x [Homo sapiens]", "NP_000549.1", "Homo sapiens"),
+        ("XP_016880112.1 x [Homo sapiens]", "XP_016880112.1", "Homo sapiens"),
+        (
+            "YP_009724390.1 x [Severe acute respiratory syndrome coronavirus 2]",
+            "YP_009724390.1",
+            "Severe acute respiratory syndrome coronavirus 2",
+        ),
+        ("WP_000184067.1 MULTISPECIES: MbtH family protein [Bacillus]", "WP_000184067.1", "Bacillus"),
+        ("AP_000123 x [Homo sapiens]", "AP_000123", "Homo sapiens"),
+        # GenPept: three letters, five or seven digits, and the version is required.
+        ("AAA59174.1 insulin receptor precursor [Homo sapiens]", "AAA59174.1", "Homo sapiens"),
+        ("ABC1234567.2 x [Homo sapiens]", "ABC1234567.2", "Homo sapiens"),
+        ("AAA59174 x [Homo sapiens]", None, None),
+        # A decoy or contaminant tag keeps the target's accession, as for ``gi|`` ids.
+        ("DECOY_NP_000549.1 x [Homo sapiens]", "NP_000549.1", "Homo sapiens"),
+        ("rev-0-AAA59174.1 x [Homo sapiens]", "AAA59174.1", "Homo sapiens"),
+        # Any other first word is an identifier only, so no organism is read either.
+        ("sequence_1 x [Homo sapiens]", None, None),
+        ("NC_000001.11 x [Homo sapiens]", None, None),
+        # ``[key=value]`` is an NCBI qualifier, not an organism, and only a trailing
+        # bracket is one.
+        ("NP_000549.1 x [organism=Homo sapiens]", "NP_000549.1", None),
+        ("NP_000549.1 x [Homo sapiens] isoform a", "NP_000549.1", None),
+        # An explicit ``OS=`` wins over the brackets.
+        ("NP_000549.1 x [Homo sapiens] OS=Mus musculus", "NP_000549.1", "Mus musculus"),
+        # A pipe-delimited NCBI identifier keeps its own rules: the brackets stay text.
+        ("gi|4504345|ref|NP_000549.1| x [Homo sapiens]", "NP_000549.1", None),
+    ],
+)
+def test_ncbi_bare_accession_boundary(header: str, accession: str | None, os_name: str | None) -> None:
+    [e] = _read_str(f">{header}\nACDEFG\n")
+    assert (e.accession, e.os_name) == (accession, os_name)
+    assert e.prefix is None or e.prefix.endswith("gi")
+
+
+def test_ensembl_pep_fields():
+    """The Ensembl ``pep`` header from issue #37: ``gene_symbol:`` is the gene name."""
+    header = (
+        ">ENSP00000322421.5 pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 "
+        "transcript:ENST00000320868.9 gene_biotype:protein_coding gene_symbol:HBA1"
+    )
+    [e] = _read_str(f"{header}\nMVLSPADKTN\n")
+    assert e.accession == "ENSP00000322421.5"
+    assert e.gname == "HBA1"
+    # Ensembl writes ``key:value``, so the whole description is the name text, and the
+    # gene and transcript ids have no field of their own.
+    assert e.pname == e.description == header[1:].split(maxsplit=1)[1]
+    assert (e.os_name, e.ncbi_tax_id, e.extra) == (None, None, {})
+
+
+@pytest.mark.parametrize(
+    ("header", "accession", "gname"),
+    [
+        ("ENSP00000322421.5 pep gene_symbol:HBA1", "ENSP00000322421.5", "HBA1"),
+        ("ENSP00000322421 pep gene_symbol:HBA1", "ENSP00000322421", "HBA1"),
+        ("ENSMUSP00000020316.9 pep gene_symbol:Hba-a1", "ENSMUSP00000020316.9", "Hba-a1"),
+        ("REV_ENSP00000322421.5 pep gene_symbol:HBA1", "ENSP00000322421.5", "HBA1"),
+        # No gene symbol in the header, and a gene id is not a gene name.
+        ("ENSP00000322421.5 pep gene:ENSG00000206172.8", "ENSP00000322421.5", None),
+        # An explicit ``GN=`` wins; a word ending in the token is not the token.
+        ("ENSP00000322421.5 pep gene_symbol:HBA1 GN=HBA2", "ENSP00000322421.5", "HBA2"),
+        ("ENSP00000322421.5 pep xgene_symbol:HBA1", "ENSP00000322421.5", None),
+        # Transcript and gene ids are not protein ids, and Ensembl Genomes gene-model
+        # names have no fixed shape.
+        ("ENST00000320868.9 cdna gene_symbol:HBA1", None, None),
+        ("AT1G01010.1 pep gene_symbol:NAC001", None, None),
+    ],
+)
+def test_ensembl_accession_boundary(header: str, accession: str | None, gname: str | None) -> None:
+    [e] = _read_str(f">{header}\nACDEFG\n")
+    assert (e.accession, e.gname) == (accession, gname)
+
+
+def test_uniref_fields():
+    """The UniRef header from issue #37: ``Tax=``/``TaxID=`` are the organism fields."""
+    header = ">UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN"
+    [e] = _read_str(f"{header}\nMVLSPADKTN\n")
+    assert e.accession == "UniRef90_P69905"
+    assert e.os_name == "Primates"
+    assert e.ncbi_tax_id == 9443
+    assert e.pname == "Hemoglobin subunit alpha"
+    # The cluster size and the representative member have no field of their own.
+    assert e.extra == {"n": "12", "RepID": "HBA_HUMAN"}
+    assert e.gname is None
+
+
+@pytest.mark.parametrize(
+    ("header", "accession", "os_name", "ncbi_tax_id", "extra"),
+    [
+        ("UniRef50_P69905 x Tax=Primates TaxID=9443", "UniRef50_P69905", "Primates", 9443, {}),
+        ("UniRef100_UPI0000000005 x Tax=Primates", "UniRef100_UPI0000000005", "Primates", None, {}),
+        ("DECOY_UniRef90_P69905 x Tax=Primates", "UniRef90_P69905", "Primates", None, {}),
+        # An explicit UniProt key wins, as for a repeated key, and the key it leaves
+        # unused stays in ``extra``.
+        (
+            "UniRef90_P69905 x OS=Homo sapiens OX=9606 Tax=Primates TaxID=9443",
+            "UniRef90_P69905",
+            "Homo sapiens",
+            9606,
+            {"Tax": "Primates", "TaxID": "9443"},
+        ),
+        # A non-integer taxonomy id stays in ``extra``, as a non-integer ``OX=`` does.
+        ("UniRef90_P69905 x Tax=Primates TaxID=9443.0", "UniRef90_P69905", "Primates", None, {"TaxID": "9443.0"}),
+        # Only the three cluster identities exist, and ``Tax=`` is UniRef's own key.
+        ("UniRef70_P69905 x Tax=Primates", None, None, None, {"Tax": "Primates"}),
+        ("P69905 x Tax=Primates", None, None, None, {"Tax": "Primates"}),
+    ],
+)
+def test_uniref_boundary(
+    header: str, accession: str | None, os_name: str | None, ncbi_tax_id: int | None, extra: dict[str, str]
+) -> None:
+    [e] = _read_str(f">{header}\nACDEFG\n")
+    assert (e.accession, e.os_name, e.ncbi_tax_id, e.extra) == (accession, os_name, ncbi_tax_id, extra)
+
+
+def test_bare_accession_headers_from_a_path(tmp_path):
+    """The chunked path reader agrees with the line-by-line handle reader (two readers)."""
+    text = (
+        ">NP_000549.1 hemoglobin subunit alpha [Homo sapiens]\nMVLS\n"
+        ">ENSP00000322421.5 pep gene:ENSG00000206172.8 gene_symbol:HBA1\nMVLS\n"
+        ">UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN\nMVLS\n"
+    )
+    p = tmp_path / "bare.fasta"
+    p.write_text(text)
+    assert read_fasta(p) == _read_str(text)
+    assert [(e.accession, e.os_name, e.gname) for e in read_fasta(p)] == [
+        ("NP_000549.1", "Homo sapiens", None),
+        ("ENSP00000322421.5", None, "HBA1"),
+        ("UniRef90_P69905", "Primates", None),
+    ]
+
+
 def test_extra_keys_captured():
     [e] = _read_str(">id name part FOO=bar BAZ=qux extra trailing\nA\n")
     assert e.extra == {"FOO": "bar", "BAZ": "qux extra trailing"}

@@ -10,8 +10,9 @@ fastatacular is a pure-Python library with no dependencies for reading and writi
 [FASTA](https://en.wikipedia.org/wiki/FASTA_format) sequence files. Each record becomes a
 frozen `SequenceEntry` whose header is parsed into typed fields: the identifier, the
 database prefix, accession and entry name of pipe-delimited identifiers
-(`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`), and the UniProt description keys
-`OS=`, `OX=`, `GN=`, `PE=` and `SV=`. The library also reads compressed files, writes
+(`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`), the UniProt description keys
+`OS=`, `OX=`, `GN=`, `PE=` and `SV=`, and the accession and description fields of NCBI,
+Ensembl and UniRef headers (`NP_000549.1`, `ENSP00000322421.5`, `UniRef90_P69905`). The library also reads compressed files, writes
 headers back unchanged, builds target-decoy databases, gives random access by identifier
 or accession through a samtools-compatible `.fai` index. It is intended for proteomics and genomics pipelines
 and requires Python 3.12 or later.
@@ -128,13 +129,13 @@ Each entry is a `SequenceEntry`:
 | `identifier` | `str` | Header text after `>` up to the first whitespace (e.g. `sp\|P12345\|EX_HUMAN`); for an RCSB PDB entity header (`1MBA_1\|Chain A\|...`) the first pipe field |
 | `sequence` | `str` | Sequence lines joined, with all whitespace removed; `""` for a header with no sequence lines |
 | `prefix` | `str \| None` | Database prefix (`sp`, `tr`, `gi`, ...) when the identifier is pipe-delimited |
-| `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` identifiers; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`); the third field of NCBI `pir\|\|ENTRY` and `prf\|\|NAME` (`S71500` from `pir\|\|S71500` or `gi\|7428543\|pir\|\|S71500`) |
+| `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` identifiers; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`); the third field of NCBI `pir\|\|ENTRY` and `prf\|\|NAME` (`S71500` from `pir\|\|S71500` or `gi\|7428543\|pir\|\|S71500`); the identifier itself when it is an NCBI protein, Ensembl protein or UniRef accession (`NP_000549.1`, `ENSP00000322421.5`, `UniRef90_P69905`) |
 | `entry_name` | `str \| None` | Third pipe field on UniProt identifiers (e.g. `EX_HUMAN`), or the fifth on `gi\|N\|sp\|P12345\|EX_HUMAN`; none for PDB chains |
 | `description` | `str \| None` | Header text after the identifier, including any `KEY=value` pairs |
 | `pname` | `str \| None` | Protein name (the description before its first `KEY=value` pair) |
-| `gname` | `str \| None` | Gene name (`GN=`) |
-| `os_name` | `str \| None` | Organism name (`OS=`) |
-| `ncbi_tax_id` | `int \| None` | NCBI taxonomy ID (`OX=`) |
+| `gname` | `str \| None` | Gene name (`GN=`, or Ensembl's `gene_symbol:`) |
+| `os_name` | `str \| None` | Organism name (`OS=`, UniRef's `Tax=`, or the trailing `[Homo sapiens]` of an NCBI defline) |
+| `ncbi_tax_id` | `int \| None` | NCBI taxonomy ID (`OX=`, or UniRef's `TaxID=`) |
 | `pe` | `int \| None` | Protein existence level (`PE=`) |
 | `sv` | `int \| None` | Sequence version (`SV=`) |
 | `extra` | `dict[str, str]` | Any other `KEY=value` pairs found in the header |
@@ -163,6 +164,47 @@ Other `KEY=value` pairs are kept in `entry.extra`. A header without `KEY=value` 
 fills `description` and `pname` and leaves `extra` empty. When a key appears more than
 once (`OS=Human ... OS=Mouse`), the first value is used; `description` and `raw_header`
 still hold the full text.
+
+## NCBI, Ensembl and UniRef headers
+
+Identifiers that are a bare accession are recognized by their shape, and the fields their
+database writes in the description are read into the same typed fields:
+
+```python
+[ncbi] = read_fasta("refseq.fasta")
+# >NP_000549.1 hemoglobin subunit alpha [Homo sapiens]
+ncbi.accession       # "NP_000549.1"
+ncbi.os_name         # "Homo sapiens" (the defline's trailing brackets)
+
+[ensembl] = read_fasta("ensembl.pep.fasta")
+# >ENSP00000322421.5 pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 \
+#  transcript:ENST00000320868.9 gene_biotype:protein_coding gene_symbol:HBA1
+ensembl.accession    # "ENSP00000322421.5"
+ensembl.gname        # "HBA1" (from gene_symbol:)
+
+[uniref] = read_fasta("uniref90.fasta")
+# >UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN
+uniref.accession     # "UniRef90_P69905"
+uniref.os_name       # "Primates" (from Tax=)
+uniref.ncbi_tax_id   # 9443 (from TaxID=)
+uniref.extra         # {"n": "12", "RepID": "HBA_HUMAN"}
+```
+
+Only what each format defines is parsed, and an explicit UniProt key always wins:
+
+- NCBI: RefSeq protein (`NP_`, `XP_`, `YP_`, `WP_`, `AP_`, `ZP_`) and versioned GenPept
+  (`AAA59174.1`) accessions. The organism is the defline's trailing `[...]` only, so an
+  NCBI `[key=value]` qualifier is left as text, and the brackets stay in `pname` as well.
+  A defline carries no taxonomy id, so `ncbi_tax_id` stays `None`.
+- Ensembl: protein ids of an Ensembl `pep` file (`ENSP...`, `ENSMUSP...`). Only
+  `gene_symbol:` is a gene name; `gene:` and `transcript:` are Ensembl ids, which no field
+  takes, and Ensembl `pep` headers name no organism.
+- UniRef: `UniRef50_`, `UniRef90_` and `UniRef100_` clusters. The cluster size (`n=`) and
+  the representative member (`RepID=`) stay in `extra`.
+- A decoy or contaminant tag in front of the identifier keeps the target's accession
+  (`DECOY_NP_000549.1`), as it does for pipe-delimited identifiers.
+- Any other first word is an identifier only: `accession` stays `None` and no description
+  field is guessed from it.
 
 ## Writing
 

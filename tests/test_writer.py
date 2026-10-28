@@ -294,6 +294,65 @@ def test_rcsb_entity_header_keeps_an_edit():
     assert (again.identifier, again.accession, again.gname) == ("1MBA_1", "1MBA_1", "MB")
 
 
+# --------------------------------------------------- bare accessions (issue #37)
+
+_BARE = [
+    ">NP_000549.1 hemoglobin subunit alpha [Homo sapiens]",
+    (
+        ">ENSP00000322421.5 pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 "
+        "transcript:ENST00000320868.9 gene_biotype:protein_coding gene_symbol:HBA1"
+    ),
+    ">UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN",
+]
+
+
+@pytest.mark.parametrize("header", _BARE)
+def test_bare_accession_header_round_trips_verbatim(header: str) -> None:
+    text = f"{header}\nMVLSPADKTN\n"
+    [parsed] = read_fasta(io.StringIO(text))
+    assert _write_str([parsed], line_width=0) == text
+
+
+@pytest.mark.parametrize("header", _BARE)
+def test_bare_accession_header_rebuild_keeps_its_fields(header: str) -> None:
+    """A rebuilt header writes the fields as UniProt keys and reads back to the same fields."""
+    [parsed] = read_fasta(io.StringIO(f"{header}\nMVLSPADKTN\n"))
+    rebuilt = _write_str([dataclasses.replace(parsed, raw_header="", description=None)], line_width=0)
+    [again] = read_fasta(io.StringIO(rebuilt))
+    for name in ("identifier", "accession", "pname", "os_name", "ncbi_tax_id", "gname", "extra"):
+        assert getattr(again, name) == getattr(parsed, name), name
+    # Stable: rebuilding the rebuilt entry changes nothing more.
+    assert _write_str([dataclasses.replace(again, raw_header="", description=None)], line_width=0) == rebuilt
+
+
+def test_ncbi_defline_rebuild_writes_the_organism_as_a_key():
+    """The organism is written as ``OS=``; the brackets stay in ``pname`` as read."""
+    [parsed] = read_fasta(io.StringIO(">NP_000549.1 hemoglobin subunit alpha [Homo sapiens]\nMVLS\n"))
+    out = _write_str([dataclasses.replace(parsed, gname="HBA1")], line_width=0)
+    assert out.splitlines()[0] == (">NP_000549.1 hemoglobin subunit alpha [Homo sapiens] OS=Homo sapiens GN=HBA1")
+    [again] = read_fasta(io.StringIO(out))
+    assert (again.accession, again.os_name, again.gname) == ("NP_000549.1", "Homo sapiens", "HBA1")
+
+
+def test_uniref_rebuild_writes_uniprot_keys():
+    """``Tax=``/``TaxID=`` are rebuilt as ``OS=``/``OX=``; ``n=`` and ``RepID=`` stay as they are."""
+    header = ">UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN"
+    [parsed] = read_fasta(io.StringIO(f"{header}\nMVLS\n"))
+    rebuilt = _write_str([dataclasses.replace(parsed, raw_header="", description=None)], line_width=0)
+    assert rebuilt.splitlines()[0] == (
+        ">UniRef90_P69905 Hemoglobin subunit alpha OS=Primates OX=9443 n=12 RepID=HBA_HUMAN"
+    )
+
+
+def test_uniref_extra_tax_key_that_would_not_read_back_raises():
+    """``extra={"Tax": ...}`` on a UniRef id is the organism on read, as ``OS=`` would be."""
+    entry = SequenceEntry(identifier="UniRef90_P69905", sequence="MVLS", extra={"Tax": "Primates"})
+    with pytest.raises(FastaWriteError) as exc:
+        _write_str([entry])
+    assert exc.value.index == 0
+    assert "Tax" in str(exc.value)
+
+
 def test_old_pdb_pipe_form_rebuild_unchanged():
     """The ``pdb|ENTRY|CHAIN`` form is not rejoined: its identifier must survive a rebuild."""
     [parsed] = read_fasta(io.StringIO(">pdb|1MBA|A Chain A, Myoglobin\nMKLVA\n"))

@@ -16,7 +16,9 @@ Three sources, none of which uses fastatacular to decide the expected values:
    gene name (else OrderedLocusName, else ORFname), the protein existence level
    and entryAudit.sequenceVersion, following the rules on the help page.
 3. ``ncbi``: real headers from NCBI efetch (``rettype=fasta``); the expected
-   identifier and description are ``accessionversion`` and ``title`` from esummary.
+   identifier, accession, description and organism are ``accessionversion`` (twice),
+   ``title`` and ``organism`` from esummary. The defline writes the organism in
+   brackets at the end of the title.
 
 Rerunning needs network access. The committed JSON is what the tests use.
 """
@@ -164,8 +166,11 @@ SPEC = [
         ">UniRef50_Q9K794 Putative AgrB-like protein n=2 Tax=Bacillus TaxID=1386 RepID=AGRB_BACHD",
         _exp(
             identifier="UniRef50_Q9K794",
+            accession="UniRef50_Q9K794",
             pname="Putative AgrB-like protein",
-            extra={"n": "2", "Tax": "Bacillus", "TaxID": "1386", "RepID": "AGRB_BACHD"},
+            os_name="Bacillus",
+            ncbi_tax_id=1386,
+            extra={"n": "2", "RepID": "AGRB_BACHD"},
         ),
     ),
     (">UPI0000000005 status=active", _exp(identifier="UPI0000000005", extra={"status": "active"})),
@@ -253,9 +258,15 @@ SPEC = [
 ]
 
 # Legacy NCBI ``db|id|...`` deflines (NCBI C++ Toolkit book, "FASTA identifiers":
-# https://ncbi.github.io/cxx-toolkit/pages/ch_demo#ch_demo.T5) and generic headers.
+# https://ncbi.github.io/cxx-toolkit/pages/ch_demo#ch_demo.T5), Ensembl ``pep`` headers
+# (Ensembl release 112 ``fasta/*/pep/README``, which gives the key order
+# ``pep SEQTYPE:... chromosome:... gene:... transcript:... gene_biotype:...
+# transcript_biotype:... gene_symbol:... description:...``) and generic headers.
 # fastatacular keeps the first two pipe fields as prefix/accession, except for
-# ``gi|NUMBER|db|ACCESSION|`` ids, whose accession is the fourth field.
+# ``gi|NUMBER|db|ACCESSION|`` ids, whose accession is the fourth field. An Ensembl
+# protein id is the whole identifier, and only ``gene_symbol:`` names a field: ``gene:``
+# and ``transcript:`` are Ensembl ids, which ``SequenceEntry`` has no field for, and the
+# trailing ``[Source:...]`` of ``description:`` is not an organism.
 OTHER = [
     (
         ">gi|4557757|ref|NP_000240.1| MutL protein homolog 1 [Homo sapiens]",
@@ -284,7 +295,22 @@ OTHER = [
             pname="insulin receptor precursor [Homo sapiens]",
         ),
     ),
-    (">ENSP00000269305.4", _exp(identifier="ENSP00000269305.4")),
+    (">ENSP00000269305.4", _exp(identifier="ENSP00000269305.4", accession="ENSP00000269305.4")),
+    (
+        ">ENSP00000322421.5 pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 "
+        "transcript:ENST00000320868.9 gene_biotype:protein_coding transcript_biotype:protein_coding "
+        "gene_symbol:HBA1 description:hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]",
+        _exp(
+            identifier="ENSP00000322421.5",
+            accession="ENSP00000322421.5",
+            pname=(
+                "pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 "
+                "transcript:ENST00000320868.9 gene_biotype:protein_coding transcript_biotype:protein_coding "
+                "gene_symbol:HBA1 description:hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]"
+            ),
+            gname="HBA1",
+        ),
+    ),
     (">contig_12\tassembled from 3 reads", _exp(identifier="contig_12", pname="assembled from 3 reads")),
 ]
 
@@ -359,7 +385,12 @@ def _ncbi(acc: str) -> dict[str, object]:
     return {
         "source": f"ncbi:{acc}",
         "header": header,
-        "expected": _exp(identifier=doc["accessionversion"], pname=doc["title"]),
+        "expected": _exp(
+            identifier=doc["accessionversion"],
+            accession=doc["accessionversion"],
+            pname=doc["title"],
+            os_name=doc["organism"],
+        ),
     }
 
 
