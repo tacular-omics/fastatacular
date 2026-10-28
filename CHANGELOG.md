@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Current RCSB PDB entity headers (`>1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina`) gave the
+  wrong `identifier` and `accession` (`1MBA_1|Chain` and `Chain`): the identifier was cut
+  at the first whitespace, which falls inside `Chain A`, and the pipe rules then read the
+  truncated second field as the accession. For a header whose field after the first is
+  `Chain X` or `Chains X, Y`, the identifier is now the first pipe field (`1MBA_1`), the
+  accession is that same entity id, and the rest of the line is the `description`. The
+  older `pdb|1MBA|A Chain A` and `gi|229552|pdb|1MBA|A` forms are unchanged and keep their
+  `1MBA_A` accession, and `raw_header` is still written back byte for byte. Rebuilt headers
+  rejoin the name with `|` rather than a space, so an edited entry keeps its accession when
+  it is read again ([#36](https://github.com/tacular-omics/fastatacular/issues/36)).
+
 ## [1.3.1] (2026-10-26)
 
 ### Changed

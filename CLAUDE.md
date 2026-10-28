@@ -65,7 +65,8 @@ scripts/release_version.py   # version sync/check used by just set-version / che
 ```
 
 Data flow (read): text lines -> `_iter_entries` skips blank lines and `;` comments ->
-`>` line goes to `_parse_header_line` (identifier = text up to the first whitespace;
+`>` line goes to `_parse_header_line` (identifier = text up to the first whitespace,
+or the first pipe field when `_RCSB_ID` matches;
 `_UNIPROT_ID` / `_PIPE_ID` regexes fill `prefix`/`accession`/`entry_name`;
 `_KV_PATTERN` pulls `KEY=value` pairs) -> all whitespace is removed from sequence lines and they are joined ->
 `_build_entry` makes a `SequenceEntry` (the sequence may be `""`).
@@ -138,7 +139,14 @@ Exported from `fastatacular` (`__all__`):
   then the structured fields and `extra`; `KEY=value` pairs in `description` are only
   written if no structured field or `extra` key covers them.
 - **Identifier ends at the first whitespace** (space or tab), like UniProt, BLAST,
-  Biopython and samtools.
+  Biopython and samtools. One exception: a current RCSB PDB entity header, whose
+  second field is `Chain X` or `Chains X, Y`
+  (`>1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina`). Whitespace would cut inside
+  `Chain A`, so `_RCSB_ID` takes the first pipe field as the identifier and the
+  accession, and the rest of the line as the description. `_build_header_line`
+  rejoins that name with `|`, not a space, or the rebuilt header would read back
+  with no accession. The older `pdb|1MBA|A Chain A` form is not touched: its second
+  field is the entry, so it still gives the `1MBA_A` accession.
 - **All whitespace is removed from sequence lines** (`A C D` -> `ACD`). Case and `*`
   are kept.
 - `description` is the full text after the identifier *including* `KEY=value` pairs;

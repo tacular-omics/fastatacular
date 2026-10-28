@@ -265,3 +265,39 @@ def test_gz_output_is_reproducible(tmp_path: Path) -> None:
     write_fasta(entries, path)
     assert path.read_bytes() == first
     assert read_fasta(path) == entries
+
+
+def test_rcsb_entity_header_round_trips_verbatim():
+    text = ">1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina\nSLSAAEADLA\n"
+    [parsed] = read_fasta(io.StringIO(text))
+    assert _write_str([parsed], line_width=0) == text
+
+
+def test_rcsb_entity_header_rebuild_keeps_the_accession():
+    """Rebuilding rejoins the name with '|': a space would read back with no accession."""
+    [parsed] = read_fasta(io.StringIO(">1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina\nSLSAAEADLA\n"))
+    rebuilt = _write_str([dataclasses.replace(parsed, raw_header="", description=None)], line_width=0)
+    assert rebuilt == ">1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina\nSLSAAEADLA\n"
+    [again] = read_fasta(io.StringIO(rebuilt))
+    assert (again.identifier, again.accession, again.description) == (
+        parsed.identifier,
+        parsed.accession,
+        parsed.description,
+    )
+
+
+def test_rcsb_entity_header_keeps_an_edit():
+    [parsed] = read_fasta(io.StringIO(">1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina\nSLSAAEADLA\n"))
+    out = _write_str([dataclasses.replace(parsed, gname="MB")], line_width=0)
+    assert out.splitlines()[0] == ">1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina GN=MB"
+    [again] = read_fasta(io.StringIO(out))
+    assert (again.identifier, again.accession, again.gname) == ("1MBA_1", "1MBA_1", "MB")
+
+
+def test_old_pdb_pipe_form_rebuild_unchanged():
+    """The ``pdb|ENTRY|CHAIN`` form is not rejoined: its identifier must survive a rebuild."""
+    [parsed] = read_fasta(io.StringIO(">pdb|1MBA|A Chain A, Myoglobin\nMKLVA\n"))
+    rebuilt = _write_str([dataclasses.replace(parsed, raw_header="", description=None)], line_width=0)
+    assert rebuilt == ">pdb|1MBA|A Chain A, Myoglobin\nMKLVA\n"
+    [again] = read_fasta(io.StringIO(rebuilt))
+    assert (again.identifier, again.accession) == ("pdb|1MBA|A", "1MBA_A")
