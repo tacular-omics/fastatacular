@@ -124,6 +124,20 @@ def test_fai_custom_path_and_written_by_write_fasta(tmp_path: Path) -> None:
     assert FastaIndex.from_fai(dst, out, key="accession")["P12345"] == read_fasta(src)[0]
 
 
+def test_accession_key_of_a_bare_accession(tmp_path: Path) -> None:
+    """``key="accession"`` uses the same accession as ``SequenceEntry.accession``."""
+    text = (
+        ">NP_000549.1 hemoglobin subunit alpha [Homo sapiens]\nMVLS\n"
+        ">UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates\nMVLS\n"
+        ">seq_3 a sequence with no accession\nMVLS\n"
+    )
+    path = _write(tmp_path, "bare", text)
+    index = FastaIndex(path, key="accession")
+    assert sorted(index) == ["NP_000549.1", "UniRef90_P69905", "seq_3"]
+    for entry in read_fasta(path):
+        assert index[entry.accession or entry.identifier].identifier == entry.identifier
+
+
 def test_locate(tmp_path: Path) -> None:
     text = ">a\nMK\n>b\nAAA\n"
     index = FastaIndex(_write(tmp_path, "l", text))

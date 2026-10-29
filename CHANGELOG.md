@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Identifiers that are a bare accession now fill `accession`, and the fields their database
+  writes in the description are read into the same typed fields as UniProt's keys
+  ([#37](https://github.com/tacular-omics/fastatacular/issues/37)):
+  - NCBI RefSeq protein and versioned GenPept deflines
+    (`>NP_000549.1 hemoglobin subunit alpha [Homo sapiens]`): `accession`, and `os_name`
+    from the trailing `[...]`. An NCBI `[key=value]` qualifier is not an organism, the
+    brackets stay in `pname` as well, and a defline carries no taxonomy id.
+  - Ensembl `pep` headers (`>ENSP00000322421.5 pep ... gene_symbol:HBA1`): `accession`, and
+    `gname` from `gene_symbol:`. `gene:` and `transcript:` hold Ensembl ids, which no field
+    takes, and stay in `description` only.
+  - UniRef cluster headers
+    (`>UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN`):
+    `accession`, `os_name` from `Tax=` and `ncbi_tax_id` from `TaxID=`, which no longer
+    appear in `extra`. The cluster size (`n=`) and the representative member (`RepID=`)
+    stay in `extra`.
+
+  Only what each format defines is parsed: an explicit `OS=`, `OX=` or `GN=` wins, a decoy
+  or contaminant tag keeps the target's accession (`DECOY_NP_000549.1`), and any other
+  first word is still an identifier with no accession and no fields read from its
+  description. `raw_header` is written back byte for byte as before; a rebuilt header
+  writes these fields as `OS=`, `OX=` and `GN=`.
+
+  `FastaIndex(key="accession")` keys entries by the same accession, so in a target-decoy
+  file a tagged decoy of a bare accession now shares its target's key, as it already did
+  for pipe-delimited identifiers (`duplicates="first"`, or the default
+  `key="identifier"`, keeps both).
+
 ### Fixed
 
 - Current RCSB PDB entity headers (`>1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina`) gave the

@@ -107,18 +107,16 @@
    "header": ">UniRef50_Q9K794 Putative AgrB-like protein n=2 Tax=Bacillus TaxID=1386 RepID=AGRB_BACHD",
    "expected": {
     "prefix": null,
-    "accession": null,
+    "accession": "UniRef50_Q9K794",
     "entry_name": null,
     "pname": "Putative AgrB-like protein",
-    "os_name": null,
-    "ncbi_tax_id": null,
+    "os_name": "Bacillus",
+    "ncbi_tax_id": 1386,
     "gname": null,
     "pe": null,
     "sv": null,
     "extra": {
      "n": "2",
-     "Tax": "Bacillus",
-     "TaxID": "1386",
      "RepID": "AGRB_BACHD"
     },
     "identifier": "UniRef50_Q9K794"
@@ -329,7 +327,7 @@
    "header": ">ENSP00000269305.4",
    "expected": {
     "prefix": null,
-    "accession": null,
+    "accession": "ENSP00000269305.4",
     "entry_name": null,
     "pname": null,
     "os_name": null,
@@ -339,6 +337,23 @@
     "sv": null,
     "extra": {},
     "identifier": "ENSP00000269305.4"
+   }
+  },
+  {
+   "source": "ncbi-legacy/generic",
+   "header": ">ENSP00000322421.5 pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 transcript:ENST00000320868.9 gene_biotype:protein_coding transcript_biotype:protein_coding gene_symbol:HBA1 description:hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]",
+   "expected": {
+    "prefix": null,
+    "accession": "ENSP00000322421.5",
+    "entry_name": null,
+    "pname": "pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 transcript:ENST00000320868.9 gene_biotype:protein_coding transcript_biotype:protein_coding gene_symbol:HBA1 description:hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]",
+    "os_name": null,
+    "ncbi_tax_id": null,
+    "gname": "HBA1",
+    "pe": null,
+    "sv": null,
+    "extra": {},
+    "identifier": "ENSP00000322421.5"
    }
   },
   {
@@ -652,10 +667,10 @@
    "header": ">NP_000537.3 cellular tumor antigen p53 isoform a [Homo sapiens]",
    "expected": {
     "prefix": null,
-    "accession": null,
+    "accession": "NP_000537.3",
     "entry_name": null,
     "pname": "cellular tumor antigen p53 isoform a [Homo sapiens]",
-    "os_name": null,
+    "os_name": "Homo sapiens",
     "ncbi_tax_id": null,
     "gname": null,
     "pe": null,
@@ -669,10 +684,10 @@
    "header": ">XP_016880112.1 galectin-9 isoform X1 [Homo sapiens]",
    "expected": {
     "prefix": null,
-    "accession": null,
+    "accession": "XP_016880112.1",
     "entry_name": null,
     "pname": "galectin-9 isoform X1 [Homo sapiens]",
-    "os_name": null,
+    "os_name": "Homo sapiens",
     "ncbi_tax_id": null,
     "gname": null,
     "pe": null,
@@ -686,10 +701,10 @@
    "header": ">AAA59174.1 insulin receptor precursor [Homo sapiens]",
    "expected": {
     "prefix": null,
-    "accession": null,
+    "accession": "AAA59174.1",
     "entry_name": null,
     "pname": "insulin receptor precursor [Homo sapiens]",
-    "os_name": null,
+    "os_name": "Homo sapiens",
     "ncbi_tax_id": null,
     "gname": null,
     "pe": null,
@@ -703,10 +718,10 @@
    "header": ">WP_000184067.1 MULTISPECIES: MbtH family protein [Bacillus]",
    "expected": {
     "prefix": null,
-    "accession": null,
+    "accession": "WP_000184067.1",
     "entry_name": null,
     "pname": "MULTISPECIES: MbtH family protein [Bacillus]",
-    "os_name": null,
+    "os_name": "Bacillus",
     "ncbi_tax_id": null,
     "gname": null,
     "pe": null,

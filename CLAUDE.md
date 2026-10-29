@@ -4,9 +4,11 @@
 
 fastatacular is a small, pure-Python (no runtime dependencies, Python >= 3.12) library
 for reading and writing FASTA sequence files. It parses UniProt-style description keys
-(`OS=`, `OX=`, `GN=`, `PE=`, `SV=`) and pipe-delimited identifiers
-(`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`) into typed fields on a frozen
-`SequenceEntry` dataclass, and writes entries back out with round-trip-exact headers.
+(`OS=`, `OX=`, `GN=`, `PE=`, `SV=`), pipe-delimited identifiers
+(`sp|P12345|EX_HUMAN`, `gi|12345|ref|NP_000001.1|`) and bare accessions of NCBI, Ensembl
+and UniRef headers (`NP_000549.1`, `ENSP00000322421.5`, `UniRef90_P69905`) into typed
+fields on a frozen `SequenceEntry` dataclass, and writes entries back out with
+round-trip-exact headers.
 
 Place in the tacular-omics graph: tier 0, no sibling dependencies, and no core package
 currently depends on it. Its API shape deliberately mirrors the sibling
@@ -67,8 +69,10 @@ scripts/release_version.py   # version sync/check used by just set-version / che
 Data flow (read): text lines -> `_iter_entries` skips blank lines and `;` comments ->
 `>` line goes to `_parse_header_line` (identifier = text up to the first whitespace,
 or the first pipe field when `_RCSB_ID` matches;
-`_UNIPROT_ID` / `_PIPE_ID` regexes fill `prefix`/`accession`/`entry_name`;
-`_KV_PATTERN` pulls `KEY=value` pairs) -> all whitespace is removed from sequence lines and they are joined ->
+`_UNIPROT_ID` / `_PIPE_ID` regexes fill `prefix`/`accession`/`entry_name`, else
+`_bare_accession` fills `accession` from an NCBI/Ensembl/UniRef accession shape;
+`_KV_PATTERN` pulls `KEY=value` pairs; `_read_database_conventions` then reads that
+database's own description fields) -> all whitespace is removed from sequence lines and they are joined ->
 `_build_entry` makes a `SequenceEntry` (the sequence may be `""`).
 
 Data flow (write): `_prepare_entry` validates every entry and builds its header first (nothing is
@@ -147,6 +151,20 @@ Exported from `fastatacular` (`__all__`):
   rejoins that name with `|`, not a space, or the rebuilt header would read back
   with no accession. The older `pdb|1MBA|A Chain A` form is not touched: its second
   field is the entry, so it still gives the `1MBA_A` accession.
+- **Bare accessions are recognized by shape, and only then are the database's own
+  description fields read** (`_bare_accession` -> `kind` -> `_read_database_conventions`).
+  `ncbi` (RefSeq protein or versioned GenPept) takes `os_name` from the defline's trailing
+  `[...]`, and leaves it in `pname` too, because `pname` is the description before its
+  first `KEY=` whatever the database; a bracket holding `=` is an NCBI qualifier, not an
+  organism. `ensembl` takes `gname` from `gene_symbol:` only (`gene:`/`transcript:` are
+  ids, which no field takes). `uniref` moves `Tax=`/`TaxID=` out of `extra` into
+  `os_name`/`ncbi_tax_id` and keeps `n=`/`RepID=` there. An explicit `OS=`/`OX=`/`GN=`
+  always wins, and a key it leaves unused stays in `extra`. Nothing is guessed from free
+  text, so a first word of any other shape has no accession and no fields read from its
+  description. Adding a shape changes what existing files parse to: the reference cases in
+  `tests/reference/header_reference.json` and the templates in
+  `tests/test_properties.py` (`templated_headers`, and the `plain` filter in
+  `identifiers`) must be updated with it.
 - **All whitespace is removed from sequence lines** (`A C D` -> `ACD`). Case and `*`
   are kept.
 - `description` is the full text after the identifier *including* `KEY=value` pairs;

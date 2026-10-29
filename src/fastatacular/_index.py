@@ -13,7 +13,13 @@ from typing import Literal, cast
 
 from fastatacular._compression import Compression, _check_compression
 from fastatacular._models import SequenceEntry
-from fastatacular._parser import _check_preamble, _compression, _iter_entries, _split_identifier
+from fastatacular._parser import (
+    _bare_accession,
+    _check_preamble,
+    _compression,
+    _iter_entries,
+    _split_identifier,
+)
 from fastatacular.errors import FastaError, FastaKeyError, FastaParseError
 
 _BOM = b"\xef\xbb\xbf"
@@ -39,7 +45,10 @@ def _check_duplicates(duplicates: object) -> Duplicates:
 def _accession(identifier: str) -> str:
     """The accession of an identifier, or the identifier when it has none."""
     parts = _split_identifier(identifier)
-    return identifier if parts is None else parts[1]
+    if parts is not None:
+        return parts[1]
+    bare = _bare_accession(identifier)
+    return identifier if bare is None else bare[0]
 
 
 def _identifier(header: bytes, start: int, path: Path) -> str:
@@ -79,8 +88,9 @@ class FastaIndex(Mapping[str, SequenceEntry]):
     ``.fai`` name, like samtools. It works for any file with unique identifiers,
     including target-decoy databases where ``sp|P1|X`` and ``DECOY_sp|P1|X`` share an
     accession. ``key="accession"`` keys them by the accession (``P31946`` for
-    ``sp|P31946|1433B_HUMAN``, ``NP_000240.1`` for ``gi|4557757|ref|NP_000240.1|``, the
-    same as :attr:`SequenceEntry.accession`, or the whole identifier when it has no pipe); it needs unique accessions.
+    ``sp|P31946|1433B_HUMAN``, ``NP_000240.1`` for both ``gi|4557757|ref|NP_000240.1|``
+    and the bare ``NP_000240.1``, the same as :attr:`SequenceEntry.accession`, or the whole
+    identifier when it has none); it needs unique accessions.
 
     Two entries with the same key raise :class:`FastaError` by default. Real databases
     do repeat identifiers (IP2 exports, merged databases); ``duplicates="first"`` keeps

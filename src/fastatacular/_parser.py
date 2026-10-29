@@ -120,6 +120,37 @@ _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
 # untouched and keeps its ``1MBA_A`` accession.
 _RCSB_ID = re.compile(r"^(?P<identifier>[^|\s]+)\|Chains?\s")
 
+# Identifiers that are a bare accession, with no ``db|`` prefix. Each may carry a
+# decoy/contaminant prefix (``_TAGS``), which is not part of the accession, and each
+# names the database whose description conventions the rest of the header follows
+# (see ``_bare_accession`` and ``_parse_header_line``).
+#
+# NCBI protein accession, RefSeq (``NP_000549.1``) or GenPept (``AAA16334.1``). The
+# RefSeq prefixes are the protein ones only. The GenPept form must carry its version, so
+# an ordinary word such as ``ABC12345`` is not read as an accession.
+_NCBI_ACC = re.compile(
+    rf"^{_TAGS}(?P<accession>(?:AP|NP|XP|YP|WP|ZP)_\d+(?:\.\d+)?|[A-Z]{{3}}\d{{5}}(?:\d{{2}})?\.\d+)$"
+)
+
+# Ensembl protein identifier of an Ensembl ``pep`` file: ``ENSP00000322421.5``, with an
+# optional species code (``ENSMUSP00000020316.9``). Ensembl Genomes uses gene-model names
+# instead, which have no fixed shape and are left unparsed.
+_ENSEMBL_ACC = re.compile(rf"^{_TAGS}(?P<accession>ENS[A-Z]*P\d{{6,}}(?:\.\d+)?)$")
+
+# UniRef cluster identifier: ``UniRef90_P69905`` (also ``UniRef50_`` and ``UniRef100_``).
+_UNIREF_ID = re.compile(rf"^{_TAGS}(?P<accession>UniRef(?:50|90|100)_[^|\s]+)$")
+
+_BARE_ID_KINDS = ((_NCBI_ACC, "ncbi"), (_ENSEMBL_ACC, "ensembl"), (_UNIREF_ID, "uniref"))
+
+# ``gene_symbol:HBA1`` in an Ensembl ``pep`` description. Ensembl writes ``key:value``,
+# not ``KEY=value``, so ``_split_kv`` does not see these tokens.
+_ENSEMBL_GENE_SYMBOL = re.compile(r"(?:^|(?<=\s))gene_symbol:(?P<gname>\S+)")
+
+# The trailing ``[organism]`` of an NCBI defline (``hemoglobin subunit alpha
+# [Homo sapiens]``). NCBI also writes ``[key=value]`` qualifiers, which name no organism,
+# so a bracket holding ``=`` does not count.
+_NCBI_ORGANISM = re.compile(r"\[(?P<os_name>[^\[\]=]+)\]$")
+
 
 def _split_identifier(identifier: str) -> tuple[str, str, str | None] | None:
     """Return ``(prefix, accession, entry_name)`` of a pipe-delimited identifier, or None.
@@ -148,6 +179,20 @@ def _split_identifier(identifier: str) -> tuple[str, str, str | None] | None:
         return m["prefix"], accession, name
     if m := _PIPE_ID.match(identifier):
         return m["prefix"], m["accession"], None
+    return None
+
+
+def _bare_accession(identifier: str) -> tuple[str, str] | None:
+    """Return ``(accession, kind)`` of an identifier that is a bare accession, or None.
+
+    ``kind`` is the database whose header conventions apply (``"ncbi"``, ``"ensembl"`` or
+    ``"uniref"``); ``_parse_header_line`` uses it to read the fields those conventions put
+    in the description. Only shapes that identify their database on their own are
+    recognized, so an arbitrary first word stays an identifier with no accession.
+    """
+    for pattern, kind in _BARE_ID_KINDS:
+        if m := pattern.match(identifier):
+            return m["accession"], kind
     return None
 
 
@@ -194,11 +239,16 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
 
     header = _ParsedHeader(identifier=identifier, raw_header=raw)
 
+    kind: str | None = None
     if (parts := _split_identifier(identifier)) is not None:
         header.prefix, header.accession, header.entry_name = parts
     elif rcsb:
         # ``1MBA_1`` is the entity's accession at the RCSB; it carries no db prefix.
         header.accession = identifier
+    elif bare := _bare_accession(identifier):
+        # A bare NCBI, Ensembl or UniRef accession: the whole identifier (minus any
+        # decoy/contaminant tag) is the accession, and it carries no db prefix.
+        header.accession, kind = bare
 
     if not rest:
         return header
@@ -239,7 +289,46 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
     elif first_match_start > 0:
         header.pname = rest[:first_match_start].rstrip() or None
 
+    if kind is not None:
+        _read_database_conventions(header, kind)
     return header
+
+
+def _read_database_conventions(header: _ParsedHeader, kind: str) -> None:
+    """Fill the fields that ``kind``'s own description conventions name.
+
+    The databases whose identifier is a bare accession do not use UniProt's
+    ``OS=``/``OX=``/``GN=`` keys throughout:
+
+    - ``ncbi``: the organism is the defline's trailing ``[Homo sapiens]``. It stays in
+      ``pname`` as well, because ``pname`` is the description text before its first
+      ``KEY=`` token whatever the database.
+    - ``ensembl``: the gene symbol is the ``gene_symbol:`` token. ``gene:`` and
+      ``transcript:`` hold Ensembl gene and transcript ids, which no field takes, and
+      stay in ``description`` only.
+    - ``uniref``: the organism is ``Tax=`` and its NCBI taxonomy id ``TaxID=``, which move
+      out of ``extra`` the way ``OS=`` and ``OX=`` never enter it. ``n=`` (cluster size)
+      and ``RepID=`` (the representative member's entry name) stay in ``extra``.
+
+    An explicit UniProt key wins over all of these, and a ``TaxID=`` that is not an
+    integer stays in ``extra``, as a non-integer ``OX=`` does.
+    """
+    if kind == "uniref":
+        if header.os_name is None and "Tax" in header.extra:
+            header.os_name = header.extra.pop("Tax")
+        if header.ncbi_tax_id is None and "TaxID" in header.extra:
+            try:
+                header.ncbi_tax_id = int(header.extra["TaxID"])
+            except ValueError:
+                pass
+            else:
+                del header.extra["TaxID"]
+    elif kind == "ensembl":
+        if header.gname is None and (m := _ENSEMBL_GENE_SYMBOL.search(header.description or "")):
+            header.gname = m["gname"]
+    elif kind == "ncbi":
+        if header.os_name is None and header.pname and (m := _NCBI_ORGANISM.search(header.pname)):
+            header.os_name = m["os_name"]
 
 
 def _build_entry(header: _ParsedHeader, seq_chunks: list[str]) -> SequenceEntry:

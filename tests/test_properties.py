@@ -28,6 +28,7 @@ from fastatacular import (
     read_fasta,
     write_fasta,
 )
+from fastatacular._parser import _bare_accession
 
 HEADER_FIELDS = (
     "identifier",
@@ -62,6 +63,9 @@ def _free_text(s: str) -> bool:
 
 
 name_text = _phrase.filter(_free_text)
+# An organism name as NCBI writes it in a trailing ``[...]``: the brackets delimit it, so
+# the name itself holds none.
+organism_text = name_text.filter(lambda s: "[" not in s and "]" not in s)
 accession = st.from_regex(r"\A[A-Z][0-9][A-Z0-9]{3}[0-9](-[0-9]{1,2})?\Z")
 entry_name = st.from_regex(r"\A[A-Z0-9]{1,10}_[A-Z0-9]{1,5}\Z")
 key = st.from_regex(r"\A[A-Za-z_][A-Za-z0-9_]{0,6}\Z").filter(lambda k: k not in TYPED_KEYS)
@@ -77,7 +81,10 @@ def identifiers(draw: st.DrawFn) -> dict[str, Any]:
     if kind == "ncbi_gi":
         gi = str(draw(st.integers(1, 10**9)))
         return {"identifier": f"gi|{gi}|ref|NP_{gi}.1|", "prefix": "gi", "accession": f"NP_{gi}.1", "entry_name": None}
-    ident = draw(st.from_regex(r"\A[A-Za-z0-9_.:-]{1,20}\Z"))
+    # A first word that is not an accession of any database the parser knows: those have
+    # their own style in ``templated_headers``, and an identifier that is one would also
+    # make the parser read description fields these entries do not set.
+    ident = draw(st.from_regex(r"\A[A-Za-z0-9_.:-]{1,20}\Z").filter(lambda i: _bare_accession(i) is None))
     return {"identifier": ident, "prefix": None, "accession": None, "entry_name": None}
 
 
@@ -405,7 +412,18 @@ def templated_headers(draw: st.DrawFn) -> tuple[str, dict[str, Any]]:
     tag = draw(st.sampled_from(TAGS))
     style = draw(
         st.sampled_from(
-            ["uniprot", "uniprot_archived", "gi", "gi_pdb", "ncbi_pipe", "pdb", "refseq", "uniref", "uniparc"]
+            [
+                "uniprot",
+                "uniprot_archived",
+                "gi",
+                "gi_pdb",
+                "ncbi_pipe",
+                "pdb",
+                "refseq",
+                "ensembl",
+                "uniref",
+                "uniparc",
+            ]
         )
     )
     expected: dict[str, Any] = {"entry_name": None, "extra": {}}
@@ -449,17 +467,46 @@ def templated_headers(draw: st.DrawFn) -> tuple[str, dict[str, Any]]:
         ident = f"{tag}pdb|{pdb}|{chain}"
         expected |= {"prefix": tag + "pdb", "accession": f"{pdb}_{chain}", "pname": name}
         return f">{ident} {name}", {"identifier": ident, **expected}
-    # No pipes: the whole first word is the identifier, with no prefix or accession.
+    # No pipes: the whole first word is the identifier, so it carries no db prefix. The
+    # accession is the identifier itself when its shape names a database (RefSeq/GenPept,
+    # Ensembl, UniRef), minus the tag; a UniParc id is left unparsed.
     expected |= {"prefix": None, "accession": None}
     if style == "refseq":
-        ident = tag + draw(refseq_acc)
-        pname = f"{name} [{draw(name_text)}]"
-        return f">{ident} {pname}", {"identifier": ident, **expected, "pname": pname}
+        acc = draw(refseq_acc)
+        organism = draw(organism_text)
+        # An NCBI defline ends with the organism in brackets, and keeps it in ``pname``.
+        pname = f"{name} [{organism}]"
+        ident = tag + acc
+        expected |= {"accession": acc, "pname": pname, "os_name": organism}
+        return f">{ident} {pname}", {"identifier": ident, **expected}
+    if style == "ensembl":
+        acc = f"ENSP{draw(st.from_regex(r'\A[0-9]{11}\Z'))}.{draw(st.integers(1, 9))}"
+        symbol = draw(st.from_regex(r"\A[A-Za-z0-9-]{1,10}\Z"))
+        gene, transcript = draw(st.from_regex(r"\A[0-9]{11}\Z")), draw(st.from_regex(r"\A[0-9]{11}\Z"))
+        # Ensembl ``pep`` headers use ``key:value``, not ``KEY=value``, so the whole
+        # description is the name text; only ``gene_symbol:`` names a field.
+        pname = (
+            f"pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG{gene}.8 transcript:ENST{transcript}.9 "
+            f"gene_biotype:protein_coding gene_symbol:{symbol}"
+        )
+        ident = tag + acc
+        expected |= {"accession": acc, "pname": pname, "gname": symbol}
+        return f">{ident} {pname}", {"identifier": ident, **expected}
     if style == "uniref":
-        ident = f"{tag}UniRef{draw(st.sampled_from(['50', '90', '100']))}_{draw(uniprot_acc)}"
+        acc = f"UniRef{draw(st.sampled_from(['50', '90', '100']))}_{draw(uniprot_acc)}"
+        ident = tag + acc
+        # UniRef names the organism ``Tax=`` and its taxonomy id ``TaxID=``; the cluster
+        # size ``n=`` and the representative member ``RepID=`` have no field.
         extra = {"n": draw(number), "Tax": draw(name_text), "TaxID": draw(number), "RepID": draw(entry_name)}
         kv = "".join(f" {k}={v}" for k, v in extra.items())
-        return f">{ident} {name}{kv}", {"identifier": ident, **expected, "pname": name, "extra": extra}
+        expected |= {
+            "accession": acc,
+            "pname": name,
+            "os_name": extra["Tax"],
+            "ncbi_tax_id": int(extra["TaxID"]),
+            "extra": {"n": extra["n"], "RepID": extra["RepID"]},
+        }
+        return f">{ident} {name}{kv}", {"identifier": ident, **expected}
     ident = tag + draw(st.from_regex(r"\AUPI[0-9A-F]{10}\Z"))
     kv, fields = draw(uniprot_kv())
     return f">{ident} {name}{kv}", {"identifier": ident, **expected, "pname": name, **fields}
