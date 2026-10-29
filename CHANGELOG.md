@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.4.0] (2026-10-28)
+
 ### Added
 
 - Identifiers that are a bare accession now fill `accession`, and the fields their database
