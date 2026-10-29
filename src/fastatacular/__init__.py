@@ -17,7 +17,7 @@ from fastatacular.decoys import (
 )
 from fastatacular.errors import DecoyError, FastaError, FastaKeyError, FastaParseError, FastaWriteError
 
-__version__ = "1.3.1"
+__version__ = "1.4.0"
 
 __all__ = [
     "Compression",
