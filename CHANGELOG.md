@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.4.1] (2026-11-06)
+
 ### Fixed
 
 - `FastaIndex` could not find an entry whose header is a current RCSB PDB entity header
