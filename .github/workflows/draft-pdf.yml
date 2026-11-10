@@ -7,6 +7,11 @@ on:
       - 'paper/**'
   workflow_dispatch:
 
+# Only checkout needs the repository; the draft build and the artifact upload need
+# nothing from the GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   paper:
     runs-on: ubuntu-latest
