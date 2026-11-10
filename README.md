@@ -331,6 +331,29 @@ print(by_acc.identifier("P31946"))  # sp|P31946|1433B_HUMAN
   gets a row with length 0. samtools and pysam refuse a FASTA file that starts with a
   byte-order mark, so the `.fai` of such a file works only with `FastaIndex`.
 
+## Data-frame records
+
+`to_records(path)` returns plain dictionaries that can be loaded into pandas or
+polars (install the data-frame library separately). `RECORD_KEYS` defines their
+column order and is stable within a major version.
+
+```python
+import pandas as pd
+import polars as pl
+from fastatacular import RECORD_KEYS, from_records, to_records
+
+records = to_records("human.fasta")
+pandas_frame = pd.DataFrame(records, columns=RECORD_KEYS)
+polars_frame = pl.DataFrame(records)
+print(pandas_frame["identifier"].tolist())
+print(polars_frame["identifier"].to_list())
+
+# Convert records back to SequenceEntry objects, including after data-frame edits.
+entries = from_records(pandas_frame.to_dict(orient="records"))
+assert entries == from_records(polars_frame.to_dicts())
+print(entries[0].identifier)
+```
+
 ## Error handling
 
 Parse errors raise `FastaParseError`:
