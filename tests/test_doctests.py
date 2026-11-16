@@ -6,11 +6,11 @@ import pkgutil
 
 import fastatacular
 
-# Measured 2026-11-08: the package plus eight modules, and no `>>>` examples yet.
+# Includes the sequence-deduplication module; no `>>>` examples yet.
 # Raise these when you add modules or examples; never lower them without saying why in
 # the commit message. MIN_EXAMPLES is inert until the first example lands, so MIN_MODULES
 # is what catches a walk that imports nothing.
-MIN_MODULES = 9
+MIN_MODULES = 10
 MIN_EXAMPLES = 0
 
 

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `dedupe_sequences` keeps the first entry for each exact, case-sensitive sequence,
+  preserving entries and headers. `duplicates="error"` rejects a repeated sequence;
+  the default `"first"` logs one summary of dropped entries. `duplicate_groups`
+  separately reports the dropped identifiers under the first identifier (#67).
+
 ### Changed
 
 - `write_fasta` checks identifiers and sequences for whitespace with one precompiled regex

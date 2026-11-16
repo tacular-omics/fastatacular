@@ -43,13 +43,16 @@ Everything public is importable from the top-level package:
         to_records,        # flat dicts for pandas/polars (section 8c)
         from_records,      # the inverse: flat dicts back to SequenceEntry (section 8c)
         FastaIndex,        # random access by identifier/accession, samtools .fai (section 8d)
+        dedupe_sequences, duplicate_groups,  # exact-sequence duplicates (section 8e)
         RECORD_KEYS,       # the record keys, in order
         Compression,       # Literal["infer", "gzip", "bz2", "xz"] | None (type alias)
     )
     import fastatacular
     fastatacular.__version__   # e.g. "1.2.0"
 
-There is no CLI. The only logging is one warning from `FastaIndex(..., duplicates="first")`. The decoy names live in the public module
+There is no CLI. Logging is limited to duplicate-count warnings from
+`FastaIndex(..., duplicates="first")` and `dedupe_sequences(..., duplicates="first")`.
+The decoy names live in the public module
 `fastatacular.decoys` and are re-exported at the top level. There are no other submodules you need to import directly
 (`fastatacular._parser`, `._writer`, `._models` are private; `fastatacular.errors` is
 importable but its names are re-exported at the top level).
@@ -659,6 +662,36 @@ record's `index`, as do bad values (`pe="high"`). `9606.0` is accepted as 9606.
     (['P1', 'P2'], 'sp|P2|B_HUMAN')
     >>> index.write_fai().read_text().splitlines()
     ['sp|P1|A_HUMAN\t3\t17\t3\t4', 'sp|P2|B_HUMAN\t4\t38\t4\t5']
+
+
+## 8e. Sequence deduplication
+
+    dedupe_sequences(entries: Iterable[SequenceEntry], *,
+                     duplicates: Literal["error", "first"] = "first") -> Iterator[SequenceEntry]
+    duplicate_groups(entries: Iterable[SequenceEntry]) -> dict[str, list[str]]
+
+Sequences compare exactly as stored: case and trailing "*" matter, and empty
+sequences can repeat. dedupe_sequences yields the first entry unchanged for each
+sequence, in input order. It consumes entries lazily and retains each distinct
+sequence and its first identifier. Memory grows with the distinct sequence data.
+
+duplicates="first" logs one WARNING on "fastatacular._dedupe" when exhausted, with
+the number dropped (no warning if all are unique). duplicates="error" raises
+FastaError at the first repeated sequence, naming both entries and adding a hint
+to use "first". An invalid option raises FastaError at call time before input is
+accessed.
+
+duplicate_groups consumes entries once and returns only groups with duplicates:
+the first identifier maps to a list of later identifiers in input order. It does
+not log. Both functions accept a single-pass FastaReader, but re-open the reader
+if you need both deduplicated entries and a duplicate report.
+
+    >>> from fastatacular import dedupe_sequences, duplicate_groups
+    >>> entries = [SequenceEntry("a", "MK"), SequenceEntry("b", "MK"), SequenceEntry("c", "mk")]
+    >>> [e.identifier for e in dedupe_sequences(entries)]
+    ['a', 'c']
+    >>> duplicate_groups(entries)
+    {'a': ['b']}
 
 
 ## 9. Gotchas
