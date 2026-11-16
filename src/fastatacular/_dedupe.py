@@ -61,6 +61,13 @@ def duplicate_groups(entries: Iterable[SequenceEntry]) -> dict[str, list[str]]:
     does. Include only groups with duplicates; each list contains the dropped
     identifiers in input order, without the retained first identifier. No warning
     is logged. Like deduplication, this retains each distinct sequence string.
+
+    The key is an identifier, not a sequence, so a database that repeats an
+    identifier across two different sequences reports both their duplicates under
+    that one key: entries ``("a", "MK") ("a", "PE") ("x", "MK") ("y", "PE")`` give
+    ``{"a": ["x", "y"]}``, and which dropped identifier belongs to which sequence is
+    no longer visible. Read the kept entries from :func:`dedupe_sequences` when
+    identifiers are not unique.
     """
     first_by_sequence: dict[str, str] = {}
     groups: dict[str, list[str]] = {}

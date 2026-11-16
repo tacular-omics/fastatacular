@@ -83,6 +83,18 @@ def test_sequences_are_compared_even_when_identifiers_repeat():
     assert duplicate_groups(entries) == {"same": ["copy"]}
 
 
+def test_groups_merge_under_a_repeated_first_identifier():
+    """The key is an identifier, so two sequences first seen under one identifier share a list."""
+    entries = [
+        SequenceEntry("a", "MK"),
+        SequenceEntry("a", "PE"),
+        SequenceEntry("x", "MK"),
+        SequenceEntry("y", "PE"),
+    ]
+    assert list(dedupe_sequences(entries)) == entries[:2]
+    assert duplicate_groups(entries) == {"a": ["x", "y"]}
+
+
 @pytest.mark.parametrize("dropped", [1, 3])
 def test_first_policy_logs_one_summary_after_exhaustion(dropped, caplog):
     entries = [SequenceEntry(str(i), "MK") for i in range(dropped + 1)]

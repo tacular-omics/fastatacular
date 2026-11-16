@@ -273,7 +273,10 @@ groups = duplicate_groups(read_fasta("merged.fasta"))
 
 `duplicate_groups` consumes the input once and returns only groups with duplicates;
 the keys are the first entries' identifiers and the values are later identifiers in
-input order. It does not log. Deduplication logs one warning on
+input order. Because the key is an identifier and not a sequence, a database that
+repeats an identifier across two different sequences reports both their duplicates
+under that one key, so use the entries `dedupe_sequences` yields when identifiers
+are not unique. It does not log. Deduplication logs one warning on
 `fastatacular._dedupe` with the dropped count when the iterator is exhausted, and
 none when no entries were dropped. Pass `duplicates="error"` to raise `FastaError`
 at the first repeated sequence instead. An invalid option raises `FastaError` at
