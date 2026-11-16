@@ -225,6 +225,45 @@ def test_from_records_edits_only_the_changed_token(header: str, changes: dict[st
     assert _edit(header, **changes) == expected
 
 
+@pytest.mark.parametrize(
+    ("header", "identifier"),
+    [
+        ("1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina (6502)", "1MBA_1"),
+        ("4HHB_1|Chains A, C|Hemoglobin subunit alpha|Homo sapiens (9606)", "4HHB_1"),
+    ],
+)
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"gname": "MB"},
+        {"os_name": "Example organism"},
+        {"ncbi_tax_id": 101},
+        {"pe": 1},
+        {"sv": 2},
+        {"extra": {"XX": "value"}},
+        {"description": "Chain A|NEW"},
+    ],
+)
+def test_from_records_edits_rcsb_entity_description(header: str, identifier: str, changes: dict[str, object]) -> None:
+    [entry] = read_fasta(io.StringIO(f">{header}\nMKV\n"))
+    [edited] = from_records([entry.to_record() | changes])
+    assert edited.identifier == identifier
+    assert edited.accession == identifier
+    assert edited.raw_header.startswith(f"{identifier}|")
+    for field, value in changes.items():
+        assert getattr(edited, field) == value
+
+    output = io.StringIO()
+    write_fasta([edited], output)
+    assert output.getvalue() == f">{edited.raw_header}\nMKV\n"
+
+
+@pytest.mark.parametrize("changes", [{"prefix": "DECOY"}, {"pname": "MYOGLOBIN"}])
+def test_from_records_rejects_edits_that_break_rcsb_entity_shape(changes: dict[str, str]) -> None:
+    with pytest.raises(FastaWriteError):
+        _edit("1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina (6502)", **changes)
+
+
 def test_from_records_bare_accession_prefix_edit() -> None:
     """Setting prefix on an NCBI, UniRef, or Ensembl entry with raw_header builds db|ACC."""
     for header in (

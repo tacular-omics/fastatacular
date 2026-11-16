@@ -372,7 +372,7 @@ def _edit_description(text: str, old: dict[str, Any], new: dict[str, Any], index
 
 def _edited_header(values: dict[str, Any], raw: str, index: int) -> tuple[str, str | None]:
     """Header for a record with ``raw_header``: verbatim unless a column differs from its parse."""
-    from fastatacular._parser import _parse_header_line
+    from fastatacular._parser import _RCSB_ID, _parse_header_line
     from fastatacular.errors import FastaParseError
 
     try:
@@ -400,7 +400,10 @@ def _edited_header(values: dict[str, Any], raw: str, index: int) -> tuple[str, s
     after = raw[lead + len(old["identifier"]) :]
     if description == old["description"]:
         return f">{raw[:lead]}{identifier}{after}", description
-    sep = after[: len(after) - len(after.lstrip())] if old["description"] else " "
+    if _RCSB_ID.match(raw[lead:]):
+        sep = "|"
+    else:
+        sep = after[: len(after) - len(after.lstrip())] if old["description"] else " "
     return f">{raw[:lead]}{identifier}{sep + description if description else ''}", description
 
 
