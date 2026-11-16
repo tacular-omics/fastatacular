@@ -1,6 +1,7 @@
 """fastatacular — A pure-Python FASTA parsing and writing library."""
 
 from fastatacular._compression import Compression
+from fastatacular._dedupe import dedupe_sequences, duplicate_groups
 from fastatacular._index import FastaIndex
 from fastatacular._models import SequenceEntry
 from fastatacular._parser import FastaReader, read_fasta
@@ -31,6 +32,8 @@ __all__ = [
     "MarkovModel",
     "RECORD_KEYS",
     "SequenceEntry",
+    "dedupe_sequences",
+    "duplicate_groups",
     "from_records",
     "is_decoy",
     "load_markov_model",

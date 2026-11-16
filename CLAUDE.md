@@ -55,6 +55,7 @@ src/fastatacular/
                 # FastaReader (context manager) and read_fasta (eager list)
   _writer.py    # _build_header_line (raw_header if it still matches the fields, else rebuild), write_fasta
   _index.py     # FastaIndex: mmap scan for '\n>' -> {identifier or accession: byte span}; samtools .fai write/load
+  _dedupe.py    # exact-sequence deduplication and duplicate identifier groups; reuses _index's duplicate policy
   _records.py   # to_records / RECORD_KEYS: flat dicts for data frames (no pandas/polars dependency)
   decoys.py     # public module: decoy methods, MarkovModel, train/load; data/markov/*.json.gz models
   errors.py     # FastaError(ValueError) base; FastaParseError (.line/.context/.hint); FastaWriteError (.index/.hint)
@@ -104,8 +105,14 @@ Exported from `fastatacular` (`__all__`):
 - `FastaIndex(path, key="identifier"|"accession", duplicates="error"|"first")`
   (Mapping; missing key -> `FastaKeyError`), `.from_fai()`, `.write_fai()`, `.locate()`,
   `.identifier()`. Regular uncompressed files only (compressed, FIFO, pipe ->
-  `FastaError`). `duplicates="first"` logs one warning via `logging`, the package's
-  only logger.
+  `FastaError`). `duplicates="first"` logs one warning via `fastatacular._index`.
+- `dedupe_sequences(entries, *, duplicates="first"|"error")`: lazy exact-sequence
+  deduplication, case-sensitive, retaining the first entry unchanged. Reuses
+  `Duplicates` / `_check_duplicates` from `_index.py`; invalid options fail at call
+  time. `"first"` logs one dropped-count warning via `fastatacular._dedupe` after
+  exhaustion; `"error"` raises `FastaError` at the first repeated sequence.
+  `duplicate_groups(entries)` consumes the input once and maps first identifiers to
+  lists of later identifiers with the same sequence, omitting unique sequences.
 - `to_records(source)` / `FastaReader.to_records()` / `SequenceEntry.to_record()`: flat
   dicts with the keys of `RECORD_KEYS` (a stable contract: add keys only at a major).
   `from_records(records)` is the inverse; with `raw_header` it changes only the edited
@@ -122,7 +129,8 @@ Exported from `fastatacular` (`__all__`):
   `_writer.py`; `ty check src` must pass. Ruff rules E, W, F, I, B, UP; line length 120.
 - Errors: parsing raises `FastaParseError` with `line=` and `context=`; writing raises
   `FastaWriteError`. Non-integer `OX`/`PE`/`SV` values do not raise, they fall into
-  `extra`. No warnings; the only logging is `FastaIndex(duplicates="first")`.
+  `extra`. Logging is limited to the duplicate-count summaries from
+  `FastaIndex(duplicates="first")` and `dedupe_sequences(duplicates="first")`.
 - Private modules are underscore-prefixed; add new public names to `__init__.__all__`.
 - Tests: plain pytest functions in `tests/test_<area>.py`, `tmp_path` for files,
   `io.StringIO` for in-memory input.

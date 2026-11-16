@@ -252,6 +252,33 @@ write_fasta(entries, "single-line.fasta", line_width=0)
 
 If `raw_header` is set on an entry (as it is on every entry produced by `read_fasta`) and still matches the entry's structured fields, the writer round-trips it verbatim. If you changed a field (for example `dataclasses.replace(entry, gname="XYZ")`), or `raw_header` is empty, the header is rebuilt from the structured fields, so your edit is written.
 
+## Sequence deduplication
+
+`dedupe_sequences(entries, duplicates="first")` keeps the first entry for each exact
+sequence, in input order, with its original header and fields. Comparison is
+case-sensitive: `MK`, `mk` and `MK*` are different sequences. Empty sequences can
+also repeat. The iterator reads entries lazily and retains each distinct sequence
+and its first identifier, so memory use grows with the distinct sequence data.
+
+```python
+from fastatacular import FastaReader, dedupe_sequences, duplicate_groups, read_fasta, write_fasta
+
+with FastaReader("merged.fasta") as reader:
+    write_fasta(dedupe_sequences(reader), "unique.fasta")
+
+# Re-read the input to report the identifiers of the dropped entries.
+groups = duplicate_groups(read_fasta("merged.fasta"))
+# e.g. {"sp|P69905|HBA_HUMAN": ["sp|Q9XYZ1|HBA_MOUSE", "NP_000549.1"]}
+```
+
+`duplicate_groups` consumes the input once and returns only groups with duplicates;
+the keys are the first entries' identifiers and the values are later identifiers in
+input order. It does not log. Deduplication logs one warning on
+`fastatacular._dedupe` with the dropped count when the iterator is exhausted, and
+none when no entries were dropped. Pass `duplicates="error"` to raise `FastaError`
+at the first repeated sequence instead. An invalid option raises `FastaError` at
+call time, before any entry is read.
+
 ## Decoy databases
 
 Build target-decoy databases for FDR estimation with `reverse`, `pseudo_reverse`,

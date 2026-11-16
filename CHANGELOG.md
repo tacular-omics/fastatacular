@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `dedupe_sequences` keeps the first entry for each exact, case-sensitive sequence,
+  preserving entries and headers. `duplicates="error"` rejects a repeated sequence;
+  the default `"first"` logs one summary of dropped entries. `duplicate_groups`
+  separately reports the dropped identifiers under the first identifier (#67).
+
 ### Fixed
 
 - `from_records` accepts records without `raw_header` where the identifier is a bare accession (NCBI, UniRef, Ensembl, RCSB entity) and the `accession` column matches the identifier, rather than raising a conflict error (#59).
