@@ -233,29 +233,53 @@ def test_from_records_edits_only_the_changed_token(header: str, changes: dict[st
     ],
 )
 @pytest.mark.parametrize(
-    "changes",
+    ("changes", "added"),
     [
-        {"gname": "MB"},
-        {"os_name": "Example organism"},
-        {"ncbi_tax_id": 101},
-        {"pe": 1},
-        {"sv": 2},
-        {"extra": {"XX": "value"}},
-        {"description": "Chain A|NEW"},
+        ({"gname": "MB"}, " GN=MB"),
+        ({"os_name": "Example organism"}, " OS=Example organism"),
+        ({"ncbi_tax_id": 101}, " OX=101"),
+        ({"pe": 1}, " PE=1"),
+        ({"sv": 2}, " SV=2"),
+        ({"extra": {"XX": "value"}}, " XX=value"),
     ],
 )
-def test_from_records_edits_rcsb_entity_description(header: str, identifier: str, changes: dict[str, object]) -> None:
+def test_from_records_edits_rcsb_entity_description(
+    header: str, identifier: str, changes: dict[str, object], added: str
+) -> None:
+    """A structured-field edit appends its key and leaves the rest of the header alone."""
     [entry] = read_fasta(io.StringIO(f">{header}\nMKV\n"))
     [edited] = from_records([entry.to_record() | changes])
-    assert edited.identifier == identifier
-    assert edited.accession == identifier
-    assert edited.raw_header.startswith(f"{identifier}|")
+    assert edited.raw_header == f"{header}{added}"
+    assert (edited.identifier, edited.accession) == (identifier, identifier)
     for field, value in changes.items():
         assert getattr(edited, field) == value
 
     output = io.StringIO()
     write_fasta([edited], output)
-    assert output.getvalue() == f">{edited.raw_header}\nMKV\n"
+    assert output.getvalue() == f">{header}{added}\nMKV\n"
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        ("1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina (6502)", "1MBA_1|Chain A|NEW"),
+        ("4HHB_1|Chains A, C|Hemoglobin subunit alpha|Homo sapiens (9606)", "4HHB_1|Chain A|NEW"),
+    ],
+)
+def test_from_records_replaces_rcsb_entity_description(header: str, expected: str) -> None:
+    """Replacing the description keeps the pipe, so the header still reads back as one entity."""
+    [entry] = read_fasta(io.StringIO(f">{header}\nMKV\n"))
+    [edited] = from_records([entry.to_record() | {"description": "Chain A|NEW"}])
+    assert edited.raw_header == expected
+    assert (edited.identifier, edited.accession, edited.description) == (
+        expected.split("|")[0],
+        expected.split("|")[0],
+        "Chain A|NEW",
+    )
+
+    output = io.StringIO()
+    write_fasta([edited], output)
+    assert output.getvalue() == f">{expected}\nMKV\n"
 
 
 @pytest.mark.parametrize("changes", [{"prefix": "DECOY"}, {"pname": "MYOGLOBIN"}])
