@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.5.1] (2026-11-16)
+
 ### Fixed
 
 - `from_records` wrote `>ID|Chain ...` for a record **without** `raw_header` whose
