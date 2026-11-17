@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- `from_records` wrote `>ID|Chain ...` for a record **without** `raw_header` whose
+  description merely begins with `Chain ` or `Chains `. 1.5.0 turned
+  `{"identifier": "1MBA_A", "description": "Chain A, MYOGLOBIN"}` into
+  `>1MBA_A|Chain A, MYOGLOBIN` and read `1MBA_A` back as an `accession`, where 1.4.1 wrote
+  `>1MBA_A Chain A, MYOGLOBIN` with no accession; `P1` with `Chains of command` and a bare
+  NCBI accession with `Chain A, ...` were affected the same way. The pipe delimiter of an
+  RCSB PDB entity header is now written only when it is the only way to read the record's
+  own `accession` column back: that column holds the whole identifier, and the identifier
+  is not already a bare NCBI, Ensembl or UniRef accession. A record whose identifier is a
+  bare accession therefore keeps the space too, so `{"identifier": "NP_111111.1",
+  "accession": "NP_111111.1", "description": "Chain A, ..."}` now writes
+  `>NP_111111.1 Chain A, ...` instead of 1.5.0's pipe. Records that carry `raw_header` and
+  the entity round trip of `to_records` without it are unchanged: over every case in
+  `tests/reference/header_reference.json`, `from_records` plus `write_fasta` now writes
+  byte-identical output to 1.4.1 wherever 1.4.1 wrote a header at all.
+
 ## [1.5.0] (2026-11-16)
 
 ### Added

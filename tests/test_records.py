@@ -288,6 +288,80 @@ def test_from_records_rejects_edits_that_break_rcsb_entity_shape(changes: dict[s
         _edit("1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina (6502)", **changes)
 
 
+@pytest.mark.parametrize(
+    ("identifier", "description", "accession"),
+    [
+        ("1MBA_A", "Chain A, MYOGLOBIN", None),
+        ("1MBA_1", "Chain A, MYOGLOBIN", None),
+        ("P1", "Chains of command", None),
+        ("P1", "Chain A|MYOGLOBIN|Aplysia limacina", None),
+        ("NP_111111.1", "Chain A, MYOGLOBIN", "NP_111111.1"),
+        ("ENSP00000322421.5", "Chains A, B|MYOGLOBIN", "ENSP00000322421.5"),
+    ],
+)
+def test_from_records_without_raw_header_keeps_the_space_before_a_chain_description(
+    identifier: str, description: str, accession: str | None
+) -> None:
+    """A description that merely starts with 'Chain ' does not make a pipe-delimited id.
+
+    Only an RCSB PDB entity header puts the identifier before a pipe, and a record built
+    from columns says it is one by setting ``accession`` to the entity id. Without that,
+    1.5.0 wrote ``>ID|Chain ...`` and read the identifier back as an accession.
+    """
+    [entry] = from_records([{"identifier": identifier, "description": description, "sequence": "MK"}])
+    assert (entry.identifier, entry.description, entry.accession) == (identifier, description, accession)
+
+    output = io.StringIO()
+    write_fasta([entry], output)
+    assert output.getvalue() == f">{identifier} {description}\nMK\n"
+    assert read_fasta(io.StringIO(output.getvalue())) == [entry]
+
+
+@pytest.mark.parametrize(
+    ("identifier", "description", "header"),
+    [
+        # Only the pipe reads back an accession for these identifiers, so it is written.
+        ("1MBA_1", "Chain A|MYOGLOBIN|Aplysia limacina", ">1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina"),
+        ("4HHB_1", "Chains A, C|Hemoglobin subunit alpha", ">4HHB_1|Chains A, C|Hemoglobin subunit alpha"),
+        ("P1", "Chain A, MYOGLOBIN", ">P1|Chain A, MYOGLOBIN"),
+        # A bare accession already reads back from the space-separated header, so it keeps it.
+        ("NP_111111.1", "Chain A, MYOGLOBIN", ">NP_111111.1 Chain A, MYOGLOBIN"),
+        ("UniRef90_P69905", "Chain A, MYOGLOBIN", ">UniRef90_P69905 Chain A, MYOGLOBIN"),
+    ],
+)
+def test_from_records_writes_the_entity_pipe_only_when_the_accession_needs_it(
+    identifier: str, description: str, header: str
+) -> None:
+    """With ``accession`` set to the identifier, the delimiter is whatever reads it back."""
+    record = {"identifier": identifier, "accession": identifier, "description": description, "sequence": "MK"}
+    [entry] = from_records([record])
+    assert (entry.identifier, entry.accession, entry.description) == (identifier, identifier, description)
+
+    output = io.StringIO()
+    write_fasta([entry], output)
+    assert output.getvalue() == f"{header}\nMK\n"
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "1MBA_1|Chain A|MYOGLOBIN|Aplysia limacina (6502)",
+        "4HHB_1|Chains A, C|Hemoglobin subunit alpha|Homo sapiens (9606)",
+    ],
+)
+def test_from_records_rebuilds_an_rcsb_entity_header_without_raw_header(header: str) -> None:
+    """to_records minus raw_header still rebuilds the entity header byte for byte."""
+    [entry] = read_fasta(io.StringIO(f">{header}\nMKV\n"))
+    record = entry.to_record()
+    del record["raw_header"]
+    [rebuilt] = from_records([record])
+    assert rebuilt == entry
+
+    output = io.StringIO()
+    write_fasta([rebuilt], output)
+    assert output.getvalue() == f">{header}\nMKV\n"
+
+
 def test_from_records_bare_accession_prefix_edit() -> None:
     """Setting prefix on an NCBI, UniRef, or Ensembl entry with raw_header builds db|ACC."""
     for header in (

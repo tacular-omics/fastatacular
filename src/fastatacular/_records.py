@@ -481,7 +481,13 @@ def _built_header(values: dict[str, Any], index: int) -> tuple[str, str | None]:
                 raise _conflict(index, "description", bad, "Set the description or the structured columns, not both")
         from fastatacular._parser import _RCSB_ID
 
-        if _RCSB_ID.match(f"{identifier}|{description}"):
+        # An RCSB PDB entity header is the one style whose identifier is followed by a pipe
+        # rather than a space, so the pipe is written only when it is the only way to read
+        # the record's accession back: the accession column holds the whole identifier and
+        # the identifier is not already a bare accession. A description that merely starts
+        # with "Chain " keeps the space, as it did before 1.5.0.
+        needs_entity_pipe = parts == (None, identifier, None) and _parts_of(identifier) != parts
+        if needs_entity_pipe and _RCSB_ID.match(f"{identifier}|{description}"):
             return f">{identifier}|{description}", description
         return f">{identifier} {description}", description
     if not struct:
