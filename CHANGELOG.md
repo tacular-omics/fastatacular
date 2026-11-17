@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.5.0] (2026-11-16)
+
 ### Added
 
 - `dedupe_sequences` keeps the first entry for each exact, case-sensitive sequence,
