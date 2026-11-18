@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- An Ensembl `pep` header's `description:` field was not read, so `pname` was the whole
+  `key:value` run — `pep scaffold:GRCh38:HG2290_PATCH:6058:6610:1 gene:ENSG00000282172.1
+  transcript:… gene_symbol:IGKV5-2 description:immunoglobulin kappa variable 5-2
+  [Source:HGNC Symbol;Acc:HGNC:5835]` instead of the protein name alone (#65). `pname` is
+  now the `description:` value, which `rest.ensembl.org/lookup/id/ENSG00000282172` returns
+  verbatim as that gene's `description`. `description` still holds the whole line, and the
+  location and the gene and transcript ids are still read into no field.
+  **Not covered:** a `pep` header with no `description:` field (120 of the first 2957
+  headers of the current human `pep.all` release, the ab initio shape) keeps the general
+  rule, so its `pname` is still the `key:value` run. Ensembl's documented `pep` fields
+  hold no name, so the faithful value there is `None`, but making it `None` also makes
+  `write_fasta` raise `FastaWriteError` on any Ensembl entry rebuilt from fields without a
+  `raw_header` (the rebuild writes the name as bare text, which the reader would then no
+  longer read back as a name), so it needs the writer to emit `description:` as well. That
+  is left out of this patch.
+  Anyone who read `pname` from an Ensembl `pep` file gets the protein name instead of the
+  whole header text from now on.
+
 ## [1.5.1] (2026-11-16)
 
 ### Fixed

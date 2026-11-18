@@ -146,6 +146,12 @@ _BARE_ID_KINDS = ((_NCBI_ACC, "ncbi"), (_ENSEMBL_ACC, "ensembl"), (_UNIREF_ID, "
 # not ``KEY=value``, so ``_split_kv`` does not see these tokens.
 _ENSEMBL_GENE_SYMBOL = re.compile(r"(?:^|(?<=\s))gene_symbol:(?P<gname>\S+)")
 
+# ``description:...`` in an Ensembl ``pep`` description, which holds the protein name and
+# runs to the end of the line: it is the last field of every header in the published file
+# that has one (2837 of the first 2957 headers of the current human ``pep.all`` release,
+# none with a documented Ensembl key after it).
+_ENSEMBL_DESCRIPTION = re.compile(r"(?:^|(?<=\s))description:(?P<pname>.*)$")
+
 # The trailing ``[organism]`` of an NCBI defline (``hemoglobin subunit alpha
 # [Homo sapiens]``). NCBI also writes ``[key=value]`` qualifiers, which name no organism,
 # so a bracket holding ``=`` does not count.
@@ -303,9 +309,12 @@ def _read_database_conventions(header: _ParsedHeader, kind: str) -> None:
     - ``ncbi``: the organism is the defline's trailing ``[Homo sapiens]``. It stays in
       ``pname`` as well, because ``pname`` is the description text before its first
       ``KEY=`` token whatever the database.
-    - ``ensembl``: the gene symbol is the ``gene_symbol:`` token. ``gene:`` and
-      ``transcript:`` hold Ensembl gene and transcript ids, which no field takes, and
-      stay in ``description`` only.
+    - ``ensembl``: the gene symbol is the ``gene_symbol:`` token and the protein name the
+      ``description:`` token. ``gene:`` and ``transcript:`` hold Ensembl gene and
+      transcript ids, which no field takes, and stay in ``description`` only. A header
+      with no ``description:`` keeps the general rule, so its ``pname`` is the whole
+      ``key:value`` run: the documented ``pep`` fields hold no name, and writing one back
+      would need the writer to emit ``description:`` too.
     - ``uniref``: the organism is ``Tax=`` and its NCBI taxonomy id ``TaxID=``, which move
       out of ``extra`` the way ``OS=`` and ``OX=`` never enter it. ``n=`` (cluster size)
       and ``RepID=`` (the representative member's entry name) stay in ``extra``.
@@ -326,6 +335,8 @@ def _read_database_conventions(header: _ParsedHeader, kind: str) -> None:
     elif kind == "ensembl":
         if header.gname is None and (m := _ENSEMBL_GENE_SYMBOL.search(header.description or "")):
             header.gname = m["gname"]
+        if name := _ENSEMBL_DESCRIPTION.search(header.description or ""):
+            header.pname = name["pname"]
     elif kind == "ncbi":
         if header.os_name is None and header.pname and (m := _NCBI_ORGANISM.search(header.pname)):
             header.os_name = m["os_name"]
