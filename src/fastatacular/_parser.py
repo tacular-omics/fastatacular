@@ -306,24 +306,14 @@ def _read_database_conventions(header: _ParsedHeader, kind: str) -> None:
     - ``ensembl``: the gene symbol is the ``gene_symbol:`` token. ``gene:`` and
       ``transcript:`` hold Ensembl gene and transcript ids, which no field takes, and
       stay in ``description`` only.
-    - ``uniref``: the organism is ``Tax=`` and its NCBI taxonomy id ``TaxID=``, which move
-      out of ``extra`` the way ``OS=`` and ``OX=`` never enter it. ``n=`` (cluster size)
-      and ``RepID=`` (the representative member's entry name) stay in ``extra``.
+    - ``uniref``: nothing. ``Tax=`` and ``TaxID=`` are "the lowest common taxon shared by
+      all UniRef cluster members", not the organism of the sequence the entry carries, so
+      they stay in ``extra`` beside ``n=`` (cluster size) and ``RepID=`` (the
+      representative member's entry name).
 
-    An explicit UniProt key wins over all of these, and a ``TaxID=`` that is not an
-    integer stays in ``extra``, as a non-integer ``OX=`` does.
+    An explicit UniProt key wins over all of these.
     """
-    if kind == "uniref":
-        if header.os_name is None and "Tax" in header.extra:
-            header.os_name = header.extra.pop("Tax")
-        if header.ncbi_tax_id is None and "TaxID" in header.extra:
-            try:
-                header.ncbi_tax_id = int(header.extra["TaxID"])
-            except ValueError:
-                pass
-            else:
-                del header.extra["TaxID"]
-    elif kind == "ensembl":
+    if kind == "ensembl":
         if header.gname is None and (m := _ENSEMBL_GENE_SYMBOL.search(header.description or "")):
             header.gname = m["gname"]
     elif kind == "ncbi":
