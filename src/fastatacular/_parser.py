@@ -120,6 +120,16 @@ _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
 # untouched and keeps its ``1MBA_A`` accession.
 _RCSB_ID = re.compile(r"^(?P<identifier>[^|\s]+)\|Chains?\s")
 
+# UniProt Pan-Proteome identifier: ``pp<taxid>|<UPI>`` (``pp562|UPI0000138ECA``), where
+# ``pp<taxid>`` is the pan-proteome of a species and the second field a UniParc id. Such a
+# header ends in an optional UniProtKB annotation block whose presence "is also indicated
+# by the semicolon ';' character", after which the keys describe that UniProtKB entry:
+# ``... OX=.. OS=OrganismName [ ; db|EntryAccession|EntryName ProteinName GN=.. PE=.. SV=..]``
+# (UniProt, pan_proteomes/README_pp_fasta, "Structure of the headers"). ``db`` is ``sp`` or
+# ``tr``, so the block is found by that shape and a ``KEY=`` value cannot run into it.
+_PAN_PROTEOME_ID = re.compile(r"^pp\d+\|UPI[0-9A-F]+$")
+_PAN_PROTEOME_BLOCK = re.compile(r"\s;\s(?=(?:sp|tr)\|)")
+
 # Identifiers that are a bare accession, with no ``db|`` prefix. Each may carry a
 # decoy/contaminant prefix (``_TAGS``), which is not part of the accession, and each
 # names the database whose description conventions the rest of the header follows
@@ -253,7 +263,13 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
     if not rest:
         return header
 
-    first_match_start, pairs = _split_kv(rest)
+    if _PAN_PROTEOME_ID.match(identifier) and (block := _PAN_PROTEOME_BLOCK.search(rest)):
+        # Pan-Proteome header: the semicolon ends the organism name and introduces the
+        # keys of the representative UniProtKB entry, so each side is scanned on its own.
+        first_match_start, pairs = _split_kv(rest[: block.start()])
+        pairs = [*pairs, *_split_kv(rest[block.end() :])[1]]
+    else:
+        first_match_start, pairs = _split_kv(rest)
     seen: set[str] = set()
     for key, value in pairs:
         # A repeated key keeps its first value (``OS=Human OS=Mouse`` gives ``Human``);

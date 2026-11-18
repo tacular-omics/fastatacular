@@ -763,9 +763,7 @@
     "extra": {},
     "identifier": "4HHB_1"
    }
-  }
- ],
- "known_differences": [
+  },
   {
    "source": "uniprot-help",
    "header": ">pp562|UPI0000126990 96% UP000000625 AAC76437 OX=83333 OS=Escherichia coli (strain K12) ; sp|P13001|BIOH_ECOLI Pimeloyl-[acyl-carrier protein] methyl ester esterase GN=bioH PE=1 SV=1",
@@ -781,8 +779,8 @@
     "sv": 1,
     "extra": {},
     "identifier": "pp562|UPI0000126990"
-   },
-   "reason": "Pan-proteome headers embed a second UniProtKB header after ' ; '. It has no field of its own, so the OS= value runs on to the next KEY= and takes the annotation block with it."
+   }
   }
- ]
+ ],
+ "known_differences": []
 }

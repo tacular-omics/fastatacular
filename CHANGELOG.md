@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A UniProt Pan-Proteome header (`>pp<taxid>|<UPI> … OX= OS=OrganismName ; db|ACC|NAME
+  ProteinName GN= PE= SV=`) read its `OS=` value to the end of the line, so `os_name`
+  came back as `Escherichia coli (strain K12) ; sp|P71242|WCAK_ECOLI Colanic acid
+  biosynthesis protein WcaK` instead of `Escherichia coli (strain K12)`. UniProt's
+  `pan_proteomes/README_pp_fasta` states that the presence of the trailing UniProtKB
+  annotation block "is also indicated by the semicolon ';' character", so the organism
+  name ends there. `GN=`, `PE=` and `SV=` from the block still fill `gname`, `pe` and
+  `sv`: the README defines them as the gene name, protein-existence level and sequence
+  version of the entry whose sequence this is. Only headers whose identifier is a
+  pan-proteome identifier are affected; every other header parses as before. Anyone who
+  read `os_name` from a pan-proteome file now gets the organism alone, which is a change
+  in output for those files.
+
 ## [1.5.1] (2026-11-16)
 
 ### Fixed

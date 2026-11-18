@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 
@@ -501,3 +502,28 @@ def test_indented_header_line_number_in_errors():
     with pytest.raises(FastaParseError) as exc:
         _read_str(">a\nMK\n  >\nPE\n")
     assert exc.value.line == 3
+
+
+def test_pan_proteome_organism_stops_at_the_annotation_block() -> None:
+    """UniProt Pan-Proteome header: OS= ends where the ';' UniProtKB block begins.
+
+    Outside-sourced. The fixture is one entry of
+    ``pan_proteomes/pp562/pp562.fasta.gz`` fetched 2026-11-17; the field meanings are
+    UniProt's ``README_pp_fasta`` ("The presence of these additional fields is also
+    indicated by the semicolon \";\" character", "OrganismName: scientific name of the
+    proteome's source organism/strain"). Every expected value below was read from
+    UniProt, not from fastatacular: the organism, gene name, protein-existence level and
+    sequence version are what ``rest.uniprot.org/uniprotkb/P71242.json`` returned the
+    same day (organism ``Escherichia coli (strain K12)``, gene ``wcaK``,
+    proteinExistence ``3: Inferred from homology``, entryAudit.sequenceVersion ``2``).
+    """
+    path = Path(__file__).parent / "reference" / "pan_proteome_pp562.fasta"
+    (entry,) = read_fasta(path)
+
+    assert entry.identifier == "pp562|UPI0000138ECA"
+    assert (entry.prefix, entry.accession) == ("pp562", "UPI0000138ECA")
+    assert entry.os_name == "Escherichia coli (strain K12)"
+    assert entry.ncbi_tax_id == 83333
+    assert (entry.gname, entry.pe, entry.sv) == ("wcaK", 3, 2)
+    assert entry.pname == "81% UP000000625 AAC75106"
+    assert entry.extra == {}
