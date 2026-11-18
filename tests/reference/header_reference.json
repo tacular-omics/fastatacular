@@ -771,7 +771,6 @@
     "prefix": "pp562",
     "accession": "UPI0000126990",
     "entry_name": null,
-    "pname": "96% UP000000625 AAC76437",
     "os_name": "Escherichia coli (strain K12)",
     "ncbi_tax_id": 83333,
     "gname": "bioH",
@@ -779,7 +778,8 @@
     "sv": 1,
     "extra": {},
     "identifier": "pp562|UPI0000126990"
-   }
+   },
+   "note": "pname is left out on purpose: the README names those tokens ProteinFrequency, ProteomeIdentifier and SourceIdentifier, and the header's ProteinName is in the ';' block, which no field reads. Our pname here is the general rule, not a UniProt value."
   }
  ],
  "known_differences": []

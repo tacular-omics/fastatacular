@@ -507,15 +507,27 @@ def test_indented_header_line_number_in_errors():
 def test_pan_proteome_organism_stops_at_the_annotation_block() -> None:
     """UniProt Pan-Proteome header: OS= ends where the ';' UniProtKB block begins.
 
-    Outside-sourced. The fixture is one entry of
-    ``pan_proteomes/pp562/pp562.fasta.gz`` fetched 2026-11-17; the field meanings are
-    UniProt's ``README_pp_fasta`` ("The presence of these additional fields is also
-    indicated by the semicolon \";\" character", "OrganismName: scientific name of the
-    proteome's source organism/strain"). Every expected value below was read from
-    UniProt, not from fastatacular: the organism, gene name, protein-existence level and
-    sequence version are what ``rest.uniprot.org/uniprotkb/P71242.json`` returned the
-    same day (organism ``Escherichia coli (strain K12)``, gene ``wcaK``,
-    proteinExistence ``3: Inferred from homology``, entryAudit.sequenceVersion ``2``).
+    The fixture is one entry of ``pan_proteomes/pp562/pp562.fasta.gz`` fetched
+    2026-11-17. The rule is UniProt's ``README_pp_fasta``: "The presence of these
+    additional fields is also indicated by the semicolon \";\" character", and
+    "OrganismName: scientific name of the proteome's source organism/strain".
+
+    Each value asserted below is a UniProt value, from the endpoint that defines that
+    field, fetched the same day:
+
+    * ``OS=``/``OX=`` are the **proteome's** organism, so the oracle is
+      ``rest.uniprot.org/proteomes/UP000000625`` -> ``Escherichia coli (strain K12)``,
+      taxonId ``83333`` (the UniProtKB entry's own organism agrees here, but the README
+      defines the field as the proteome's).
+    * ``GN=``/``PE=``/``SV=`` are the UniProtKB entry's, so the oracle is
+      ``rest.uniprot.org/uniprotkb/P71242.json`` -> gene ``wcaK``, proteinExistence
+      ``3: Inferred from homology``, entryAudit.sequenceVersion ``2``.
+
+    ``pname`` is deliberately not asserted. The README names the three tokens before
+    ``OX=`` ProteinFrequency, ProteomeIdentifier and SourceIdentifier, and names the
+    protein name as the block's ``ProteinName`` ("Colanic acid biosynthesis protein
+    WcaK"), which this package reads into no field. Our ``pname`` here is the general
+    "text before the first ``KEY=``" rule, so its value is ours and not UniProt's.
     """
     path = Path(__file__).parent / "reference" / "pan_proteome_pp562.fasta"
     (entry,) = read_fasta(path)
@@ -525,5 +537,4 @@ def test_pan_proteome_organism_stops_at_the_annotation_block() -> None:
     assert entry.os_name == "Escherichia coli (strain K12)"
     assert entry.ncbi_tax_id == 83333
     assert (entry.gname, entry.pe, entry.sv) == ("wcaK", 3, 2)
-    assert entry.pname == "81% UP000000625 AAC75106"
     assert entry.extra == {}

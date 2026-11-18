@@ -17,7 +17,11 @@ All notable changes to this project will be documented in this file.
   version of the entry whose sequence this is. Only headers whose identifier is a
   pan-proteome identifier are affected; every other header parses as before. Anyone who
   read `os_name` from a pan-proteome file now gets the organism alone, which is a change
-  in output for those files.
+  in output for those files. Still not read, for these headers: the block's
+  `EntryAccession`, `EntryName` and `ProteinName`, and so `pname` remains the general
+  "text before the first `KEY=`" rule — for a pan-proteome header that is the
+  ProteinFrequency, ProteomeIdentifier and SourceIdentifier tokens, not the protein
+  name the README defines inside the block.
 
 ## [1.5.1] (2026-11-16)
 
