@@ -146,10 +146,15 @@ _BARE_ID_KINDS = ((_NCBI_ACC, "ncbi"), (_ENSEMBL_ACC, "ensembl"), (_UNIREF_ID, "
 # not ``KEY=value``, so ``_split_kv`` does not see these tokens.
 _ENSEMBL_GENE_SYMBOL = re.compile(r"(?:^|(?<=\s))gene_symbol:(?P<gname>\S+)")
 
-# ``description:...`` in an Ensembl ``pep`` description, which holds the protein name and
-# runs to the end of the line: it is the last field of every header in the published file
-# that has one (2837 of the first 2957 headers of the current human ``pep.all`` release,
-# none with a documented Ensembl key after it).
+# ``description:...`` in an Ensembl ``pep`` header, which runs to the end of the line.
+# Ensembl's dumper builds the attribute run as
+# ``qw/gene transcript gene_biotype transcript_biotype gene_symbol description/`` and sets
+# ``$attributes{description} = $gene->description if $gene->description``
+# (ensembl-production, ``Bio/EnsEMBL/Production/Pipeline/FASTA/DumpFile.pm``,
+# ``_create_display_id``), so the field is last, optional, and holds the **gene's**
+# description, including any ``[Source:...;Acc:...]`` provenance suffix. It is the only
+# name text such a header carries, so it is what ``pname`` takes; Ensembl itself never
+# calls it a protein name.
 _ENSEMBL_DESCRIPTION = re.compile(r"(?:^|(?<=\s))description:(?P<pname>.*)$")
 
 # The trailing ``[organism]`` of an NCBI defline (``hemoglobin subunit alpha
@@ -309,8 +314,10 @@ def _read_database_conventions(header: _ParsedHeader, kind: str) -> None:
     - ``ncbi``: the organism is the defline's trailing ``[Homo sapiens]``. It stays in
       ``pname`` as well, because ``pname`` is the description text before its first
       ``KEY=`` token whatever the database.
-    - ``ensembl``: the gene symbol is the ``gene_symbol:`` token and the protein name the
-      ``description:`` token. ``gene:`` and ``transcript:`` hold Ensembl gene and
+    - ``ensembl``: ``gname`` is the ``gene_symbol:`` token and ``pname`` the
+      ``description:`` token, which Ensembl's dumper fills from ``$gene->description`` --
+      a gene description, suffix and all, and the only name text in the header; Ensembl
+      does not call it a protein name. ``gene:`` and ``transcript:`` hold Ensembl gene and
       transcript ids, which no field takes, and stay in ``description`` only. A header
       with no ``description:`` keeps the general rule, so its ``pname`` is the whole
       ``key:value`` run: the documented ``pep`` fields hold no name, and writing one back

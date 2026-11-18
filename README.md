@@ -132,7 +132,7 @@ Each entry is a `SequenceEntry`:
 | `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` identifiers; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`); the third field of NCBI `pir\|\|ENTRY` and `prf\|\|NAME` (`S71500` from `pir\|\|S71500` or `gi\|7428543\|pir\|\|S71500`); the identifier itself when it is an NCBI protein, Ensembl protein or UniRef accession (`NP_000549.1`, `ENSP00000322421.5`, `UniRef90_P69905`) |
 | `entry_name` | `str \| None` | Third pipe field on UniProt identifiers (e.g. `EX_HUMAN`), or the fifth on `gi\|N\|sp\|P12345\|EX_HUMAN`; none for PDB chains |
 | `description` | `str \| None` | Header text after the identifier, including any `KEY=value` pairs |
-| `pname` | `str \| None` | Protein name (the description before its first `KEY=value` pair, or Ensembl's `description:`) |
+| `pname` | `str \| None` | Protein name (the description before its first `KEY=value` pair, or Ensembl's `description:`, which is that gene's description) |
 | `gname` | `str \| None` | Gene name (`GN=`, or Ensembl's `gene_symbol:`) |
 | `os_name` | `str \| None` | Organism name (`OS=`, UniRef's `Tax=`, or the trailing `[Homo sapiens]` of an NCBI defline) |
 | `ncbi_tax_id` | `int \| None` | NCBI taxonomy ID (`OX=`, or UniRef's `TaxID=`) |
@@ -199,7 +199,9 @@ Only what each format defines is parsed, and an explicit UniProt key always wins
   NCBI `[key=value]` qualifier is left as text, and the brackets stay in `pname` as well.
   A defline carries no taxonomy id, so `ncbi_tax_id` stays `None`.
 - Ensembl: protein ids of an Ensembl `pep` file (`ENSP...`, `ENSMUSP...`).
-  `gene_symbol:` is the gene name and `description:` the protein name; `gene:` and
+  `gene_symbol:` is the gene name and `description:` the name text (Ensembl writes that
+  field from the gene's description, `[Source:...]` suffix included, and never calls it a
+  protein name); `gene:` and
   `transcript:` are Ensembl ids, which no field takes, and Ensembl `pep` headers name no
   organism. A header with no `description:` field keeps the general rule, so its `pname`
   is the whole `key:value` run.

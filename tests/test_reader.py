@@ -235,10 +235,13 @@ def test_ncbi_bare_accession_boundary(header: str, accession: str | None, os_nam
 def test_ensembl_pep_fields():
     """The Ensembl ``pep`` header from issue #37: ``gene_symbol:`` and ``description:``.
 
-    The expected name and symbol are Ensembl's own, from
+    The header below is **constructed**, not a file line: it is the issue-#37 example with
+    a real ``description:`` appended, and today's file has ``gene:ENSG00000206172.10``.
+    The two expected values are Ensembl's own, from
     ``rest.ensembl.org/lookup/id/ENSG00000206172`` on 2026-11-17: ``description`` =
-    "hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]" and ``display_name``
-    = "HBA1".
+    "hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]" (a gene description)
+    and ``display_name`` = "HBA1". A file-line fixture is
+    ``tests/reference/ensembl_pep_igkv5_2.fasta``.
     """
     header = (
         ">ENSP00000322421.5 pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 "
@@ -517,14 +520,17 @@ def test_ensembl_pep_pname_is_the_description_field() -> None:
 
     Outside-sourced. The fixture is one entry of
     ``Homo_sapiens.GRCh38.pep.all.fa.gz`` fetched 2026-11-17. Ensembl's pep ``README``
-    gives the documented grammar as
-    ``>TRANSLATION_ID SEQTYPE LOCATION GENE_ID TRANSCRIPT_ID GENE_BIOTYPE
-    TRANSCRIPT_BIOTYPE`` -- seven fields, none of which is a protein name -- while the
-    published file adds ``gene_symbol:`` and ``description:``.
+    documents seven fields and mentions neither ``gene_symbol:`` nor ``description:``;
+    what specifies them is the dumper that writes these files, ``DumpFile.pm`` in
+    ensembl-production, whose ``_create_display_id`` emits
+    ``qw/gene transcript gene_biotype transcript_biotype gene_symbol description/`` and
+    sets ``$attributes{description} = $gene->description``.
 
-    The expected values are Ensembl's, from ``rest.ensembl.org/lookup/id/
-    ENSG00000282172`` the same day: ``description`` = "immunoglobulin kappa variable 5-2
-    [Source:HGNC Symbol;Acc:HGNC:5835]" and ``display_name`` = "IGKV5-2".
+    So the value is the **gene's** description, which is what this asserts: from
+    ``rest.ensembl.org/lookup/id/ENSG00000282172`` the same day, ``description`` =
+    "immunoglobulin kappa variable 5-2 [Source:HGNC Symbol;Acc:HGNC:5835]" and
+    ``display_name`` = "IGKV5-2". Putting a gene description in ``pname`` is this
+    package's reading, not Ensembl's wording: a ``pep`` header carries no protein name.
     """
     path = Path(__file__).parent / "reference" / "ensembl_pep_igkv5_2.fasta"
     (entry,) = read_fasta(path)

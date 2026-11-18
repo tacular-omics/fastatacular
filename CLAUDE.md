@@ -165,7 +165,7 @@ Exported from `fastatacular` (`__all__`):
   `[...]`, and leaves it in `pname` too, because `pname` is the description before its
   first `KEY=` whatever the database; a bracket holding `=` is an NCBI qualifier, not an
   organism. `ensembl` takes `gname` from `gene_symbol:` and `pname` from
-  `description:` (`gene:`/`transcript:` are ids, which no field takes; a header with no
+  `description:`, which Ensembl's dumper fills from `$gene->description` (`gene:`/`transcript:` are ids, which no field takes; a header with no
   `description:` keeps the general `pname` rule). `uniref` moves `Tax=`/`TaxID=` out of `extra` into
   `os_name`/`ncbi_tax_id` and keeps `n=`/`RepID=` there. An explicit `OS=`/`OX=`/`GN=`
   always wins, and a key it leaves unused stays in `extra`. Nothing is guessed from free

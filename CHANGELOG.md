@@ -11,10 +11,15 @@ All notable changes to this project will be documented in this file.
   transcript:… gene_symbol:IGKV5-2 description:immunoglobulin kappa variable 5-2
   [Source:HGNC Symbol;Acc:HGNC:5835]` instead of the protein name alone (#65). `pname` is
   now the `description:` value, which `rest.ensembl.org/lookup/id/ENSG00000282172` returns
-  verbatim as that gene's `description`. `description` still holds the whole line, and the
-  location and the gene and transcript ids are still read into no field.
-  **Not covered:** a `pep` header with no `description:` field (120 of the first 2957
-  headers of the current human `pep.all` release, the ab initio shape) keeps the general
+  verbatim as that gene's `description`. Ensembl's dumper writes that field from
+  `$gene->description` (`DumpFile.pm`, `_create_display_id`), so it is a **gene**
+  description, `[Source:...;Acc:...]` suffix included, and putting it in `pname` is this
+  package's reading of the only name text a `pep` header carries, not Ensembl's wording.
+  `description` still holds the whole line, and the location and the gene and transcript
+  ids are still read into no field.
+  **Not covered:** a `pep` header with no `description:` field (214 of the 382,428 headers
+  of the current human `pep.all` release — ordinary entries whose gene has no description,
+  not the separate ab initio file) keeps the general
   rule, so its `pname` is still the `key:value` run. Ensembl's documented `pep` fields
   hold no name, so the faithful value there is `None`, but making it `None` also makes
   `write_fasta` raise `FastaWriteError` on any Ensembl entry rebuilt from fields without a
