@@ -20,6 +20,22 @@ All notable changes to this project will be documented in this file.
   header, and an entry with `extra={"Tax": ...}` is now writable where it used to raise
   `FastaWriteError`. Anyone who read `os_name` or `ncbi_tax_id` from a UniRef file since
   1.4.0 must read `extra["Tax"]` / `extra["TaxID"]` instead; no alias was left behind.
+- A UniProt Pan-Proteome header (`>pp<taxid>|<UPI> … OX= OS=OrganismName ; db|ACC|NAME
+  ProteinName GN= PE= SV=`) read its `OS=` value to the end of the line, so `os_name`
+  came back as `Escherichia coli (strain K12) ; sp|P71242|WCAK_ECOLI Colanic acid
+  biosynthesis protein WcaK` instead of `Escherichia coli (strain K12)`. UniProt's
+  `pan_proteomes/README_pp_fasta` states that the presence of the trailing UniProtKB
+  annotation block "is also indicated by the semicolon ';' character", so the organism
+  name ends there. `GN=`, `PE=` and `SV=` from the block still fill `gname`, `pe` and
+  `sv`: the README defines them as the gene name, protein-existence level and sequence
+  version of the entry whose sequence this is. Only headers whose identifier is a
+  pan-proteome identifier are affected; every other header parses as before. Anyone who
+  read `os_name` from a pan-proteome file now gets the organism alone, which is a change
+  in output for those files. Still not read, for these headers: the block's
+  `EntryAccession`, `EntryName` and `ProteinName`, and so `pname` remains the general
+  "text before the first `KEY=`" rule — for a pan-proteome header that is the
+  ProteinFrequency, ProteomeIdentifier and SourceIdentifier tokens, not the protein
+  name the README defines inside the block.
 
 ## [1.5.1] (2026-11-16)
 
