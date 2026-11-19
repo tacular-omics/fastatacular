@@ -59,6 +59,18 @@ All notable changes to this project will be documented in this file.
   Anyone who read `pname` from an Ensembl `pep` file gets the protein name instead of the
   whole header text from now on.
 
+### Documentation
+
+- Say what happens to a UniParc-proteome header's list fields. UniProt's
+  [FASTA headers](https://www.uniprot.org/help/fasta-headers) help says "Lists are allowed
+  in several fields to represent paraloguous genes that encode the same sequence. List
+  elements are separated by the pipe symbol `'|'`", and fastatacular keeps each such value
+  as the one string the header holds: `GN=CALM1|CALM2|CALM3` gives the `gname`
+  `"CALM1|CALM2|CALM3"`, and `AC=`, `SS=` and `PC=` stay whole in `extra`. The README
+  field table, the per-format notes, `llms-full.txt` and the `SequenceEntry` and
+  `_parse_header_line` docstrings now state this and show the one-line split. No
+  behaviour or API change.
+
 ## [1.5.1] (2026-11-16)
 
 ### Fixed

@@ -24,6 +24,11 @@ class SequenceEntry:
         description: free text after the identifier, before any ``KEY=value``.
         pname:       protein name (the description text minus UniProt keys).
         gname:       gene name (``GN=``).
+                     A UniParc-proteome header may hold a list in ``pname``, ``gname``
+                     and the ``AC=``/``SS=``/``PC=`` keys of ``extra``, whose elements
+                     UniProt separates with ``|``. The whole value is kept as one
+                     string; split it with ``entry.gname.split("|")`` when you need the
+                     elements.
         os_name:     organism name (``OS=``).
         ncbi_tax_id: NCBI taxonomy ID (``OX=``).
         pe:          protein existence level (``PE=``).
