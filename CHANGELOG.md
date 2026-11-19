@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A UniRef header's `Tax=` and `TaxID=` were read into `os_name` and `ncbi_tax_id`, the
+  fields documented as the organism and its NCBI taxonomy id. UniProt defines them as
+  "the scientific name of the lowest common taxon shared by all UniRef cluster members"
+  and "the NCBI taxonomy identifier of the lowest common taxon shared by all UniRef
+  cluster members" (https://www.uniprot.org/help/fasta-headers), which is a clade, not
+  the organism of the sequence the entry carries: for `UniRef50_Q9K794` the header says
+  `TaxID=86665` while the sequence it holds is the representative member's, whose own
+  `organismTaxId` is `272558`. Both fields now stay in `extra` as `Tax` and `TaxID`,
+  beside `n` and `RepID`, and `os_name`/`ncbi_tax_id` are `None` unless the header
+  carries an explicit `OS=`/`OX=`. A rebuilt UniRef header therefore writes `Tax=` and
+  `TaxID=` again instead of converting them to `OS=`/`OX=`, so it reproduces the original
+  header, and an entry with `extra={"Tax": ...}` is now writable where it used to raise
+  `FastaWriteError`. Anyone who read `os_name` or `ncbi_tax_id` from a UniRef file since
+  1.4.0 must read `extra["Tax"]` / `extra["TaxID"]` instead; no alias was left behind.
+
 ## [1.5.1] (2026-11-16)
 
 ### Fixed

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 
@@ -270,26 +271,32 @@ def test_ensembl_accession_boundary(header: str, accession: str | None, gname: s
 
 
 def test_uniref_fields():
-    """The UniRef header from issue #37: ``Tax=``/``TaxID=`` are the organism fields."""
+    """The UniRef header from issue #37: only the accession is a field of its own."""
     header = ">UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN"
     [e] = _read_str(f"{header}\nMVLSPADKTN\n")
     assert e.accession == "UniRef90_P69905"
-    assert e.os_name == "Primates"
-    assert e.ncbi_tax_id == 9443
     assert e.pname == "Hemoglobin subunit alpha"
-    # The cluster size and the representative member have no field of their own.
-    assert e.extra == {"n": "12", "RepID": "HBA_HUMAN"}
+    # Tax= and TaxID= are the cluster's lowest common taxon, not this sequence's
+    # organism, so they stay in ``extra`` with the cluster size and representative.
+    assert e.os_name is None
+    assert e.ncbi_tax_id is None
+    assert e.extra == {"n": "12", "Tax": "Primates", "TaxID": "9443", "RepID": "HBA_HUMAN"}
     assert e.gname is None
 
 
 @pytest.mark.parametrize(
     ("header", "accession", "os_name", "ncbi_tax_id", "extra"),
     [
-        ("UniRef50_P69905 x Tax=Primates TaxID=9443", "UniRef50_P69905", "Primates", 9443, {}),
-        ("UniRef100_UPI0000000005 x Tax=Primates", "UniRef100_UPI0000000005", "Primates", None, {}),
-        ("DECOY_UniRef90_P69905 x Tax=Primates", "UniRef90_P69905", "Primates", None, {}),
-        # An explicit UniProt key wins, as for a repeated key, and the key it leaves
-        # unused stays in ``extra``.
+        (
+            "UniRef50_P69905 x Tax=Primates TaxID=9443",
+            "UniRef50_P69905",
+            None,
+            None,
+            {"Tax": "Primates", "TaxID": "9443"},
+        ),
+        ("UniRef100_UPI0000000005 x Tax=Primates", "UniRef100_UPI0000000005", None, None, {"Tax": "Primates"}),
+        ("DECOY_UniRef90_P69905 x Tax=Primates", "UniRef90_P69905", None, None, {"Tax": "Primates"}),
+        # An explicit UniProt key is the organism, and ``Tax=`` sits beside it untouched.
         (
             "UniRef90_P69905 x OS=Homo sapiens OX=9606 Tax=Primates TaxID=9443",
             "UniRef90_P69905",
@@ -297,8 +304,13 @@ def test_uniref_fields():
             9606,
             {"Tax": "Primates", "TaxID": "9443"},
         ),
-        # A non-integer taxonomy id stays in ``extra``, as a non-integer ``OX=`` does.
-        ("UniRef90_P69905 x Tax=Primates TaxID=9443.0", "UniRef90_P69905", "Primates", None, {"TaxID": "9443.0"}),
+        (
+            "UniRef90_P69905 x Tax=Primates TaxID=9443.0",
+            "UniRef90_P69905",
+            None,
+            None,
+            {"Tax": "Primates", "TaxID": "9443.0"},
+        ),
         # Only the three cluster identities exist, and ``Tax=`` is UniRef's own key.
         ("UniRef70_P69905 x Tax=Primates", None, None, None, {"Tax": "Primates"}),
         ("P69905 x Tax=Primates", None, None, None, {"Tax": "Primates"}),
@@ -324,7 +336,7 @@ def test_bare_accession_headers_from_a_path(tmp_path):
     assert [(e.accession, e.os_name, e.gname) for e in read_fasta(p)] == [
         ("NP_000549.1", "Homo sapiens", None),
         ("ENSP00000322421.5", None, "HBA1"),
-        ("UniRef90_P69905", "Primates", None),
+        ("UniRef90_P69905", None, None),
     ]
 
 
@@ -501,3 +513,33 @@ def test_indented_header_line_number_in_errors():
     with pytest.raises(FastaParseError) as exc:
         _read_str(">a\nMK\n  >\nPE\n")
     assert exc.value.line == 3
+
+
+def test_uniref_common_taxon_is_not_stored_as_the_source_organism() -> None:
+    """UniRef ``Tax=``/``TaxID=`` name the cluster's common taxon, not an organism.
+
+    Outside-sourced. The fixture is the cluster entry fetched 2026-11-17 from
+    ``rest.uniprot.org/uniref/UniRef50_Q9K794``. UniProt's FASTA-headers help defines the
+    two fields as "the scientific name of the lowest common taxon shared by all UniRef
+    cluster members" and "the NCBI taxonomy identifier of the lowest common taxon shared
+    by all UniRef cluster members".
+
+    The same record's JSON shows why they cannot be this sequence's organism: the sequence
+    in this entry is byte-identical to ``representativeMember.sequence.value``, whose
+    ``organismTaxId`` is 272558 ("Halalkalibacterium halodurans (strain ATCC BAA-125 /
+    ...)"), while the header's ``TaxID=`` is 86665, the record's ``commonTaxon.taxonId``.
+    Both numbers are UniProt's, fetched the same day; neither is ours.
+    """
+    path = Path(__file__).parent / "reference" / "uniref50_q9k794.fasta"
+    (entry,) = read_fasta(path)
+
+    assert entry.accession == "UniRef50_Q9K794"
+    # commonTaxon.scientificName / str(commonTaxon.taxonId) of the same UniProt record
+    assert entry.extra["Tax"] == "Halalkalibacterium halodurans"
+    assert entry.extra["TaxID"] == "86665"
+    # memberCount and representativeMember.memberId of the same record
+    assert entry.extra["n"] == "4"
+    assert entry.extra["RepID"] == "AGRB_HALH5"
+    # The header names no organism for the sequence it carries, so neither field is set.
+    assert entry.os_name is None
+    assert entry.ncbi_tax_id is None

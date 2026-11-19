@@ -514,17 +514,11 @@ def templated_headers(draw: st.DrawFn) -> tuple[str, dict[str, Any]]:
     if style == "uniref":
         acc = f"UniRef{draw(st.sampled_from(['50', '90', '100']))}_{draw(uniprot_acc)}"
         ident = tag + acc
-        # UniRef names the organism ``Tax=`` and its taxonomy id ``TaxID=``; the cluster
-        # size ``n=`` and the representative member ``RepID=`` have no field.
+        # None of UniRef's keys is a typed field: ``Tax=``/``TaxID=`` are the cluster's
+        # lowest common taxon, and ``n=``/``RepID=`` the size and representative member.
         extra = {"n": draw(number), "Tax": draw(name_text), "TaxID": draw(number), "RepID": draw(entry_name)}
         kv = "".join(f" {k}={v}" for k, v in extra.items())
-        expected |= {
-            "accession": acc,
-            "pname": name,
-            "os_name": extra["Tax"],
-            "ncbi_tax_id": int(extra["TaxID"]),
-            "extra": {"n": extra["n"], "RepID": extra["RepID"]},
-        }
+        expected |= {"accession": acc, "pname": name, "extra": dict(extra)}
         return f">{ident} {name}{kv}", {"identifier": ident, **expected}
     ident = tag + draw(st.from_regex(r"\AUPI[0-9A-F]{10}\Z"))
     kv, fields = draw(uniprot_kv())
