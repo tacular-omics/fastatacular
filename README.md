@@ -132,8 +132,8 @@ Each entry is a `SequenceEntry`:
 | `accession` | `str \| None` | Second pipe field (e.g. `P12345` in `sp\|P12345\|EX_HUMAN`); the fourth on `gi\|N\|db\|ACCESSION` identifiers; `ENTRY_CHAIN` for PDB chains (`1MBA_A` from `pdb\|1MBA\|A` or `gi\|229552\|pdb\|1MBA\|A`); the third field of NCBI `pir\|\|ENTRY` and `prf\|\|NAME` (`S71500` from `pir\|\|S71500` or `gi\|7428543\|pir\|\|S71500`); the identifier itself when it is an NCBI protein, Ensembl protein or UniRef accession (`NP_000549.1`, `ENSP00000322421.5`, `UniRef90_P69905`) |
 | `entry_name` | `str \| None` | Third pipe field on UniProt identifiers (e.g. `EX_HUMAN`), or the fifth on `gi\|N\|sp\|P12345\|EX_HUMAN`; none for PDB chains |
 | `description` | `str \| None` | Header text after the identifier, including any `KEY=value` pairs |
-| `pname` | `str \| None` | Protein name (the description before its first `KEY=value` pair, or Ensembl's `description:`, which is that gene's description) |
-| `gname` | `str \| None` | Gene name (`GN=`, or Ensembl's `gene_symbol:`) |
+| `pname` | `str \| None` | Protein name (the description before its first `KEY=value` pair, or Ensembl's `description:`, which is that gene's description). A UniParc-proteome header's `ProteinNameList` stays one `\|`-separated string |
+| `gname` | `str \| None` | Gene name (`GN=`, or Ensembl's `gene_symbol:`). A UniParc-proteome header's `GeneNameList` stays one `\|`-separated string |
 | `os_name` | `str \| None` | Organism name (`OS=`, or the trailing `[Homo sapiens]` of an NCBI defline) |
 | `ncbi_tax_id` | `int \| None` | NCBI taxonomy ID (`OX=`) |
 | `pe` | `int \| None` | Protein existence level (`PE=`) |
@@ -207,6 +207,24 @@ Only what each format defines is parsed, and an explicit UniProt key always wins
   is the whole `key:value` run.
 - UniRef: `UniRef50_`, `UniRef90_` and `UniRef100_` clusters. The cluster size (`n=`) and
   the representative member (`RepID=`) stay in `extra`.
+- UniParc proteomes: a header for a set of paralogous genes puts a **list** in several
+  fields. UniProt's [FASTA headers](https://www.uniprot.org/help/fasta-headers) help says:
+  "Lists are allowed in several fields to represent paraloguous genes that encode the same
+  sequence. List elements are separated by the pipe symbol '|'." fastatacular keeps each
+  such value as the one string the header holds, so `pname` and `gname` are not split and
+  `AC=`, `SS=` and `PC=` stay whole in `extra`. Split them yourself when you need the
+  elements:
+
+  ```python
+  # >UPI00000000C1 Calmodulin-1|Calmodulin-2|Calmodulin-3 OS=Homo sapiens OX=9606 \
+  #  GN=CALM1|CALM2|CALM3 AC=P0DP23|P0DP24|P0DP25 PC=UP000005640:Chromosome 14|Chromosome 2
+  entry.gname                  # "CALM1|CALM2|CALM3"
+  entry.gname.split("|")       # ["CALM1", "CALM2", "CALM3"]
+  entry.extra["AC"].split("|") # ["P0DP23", "P0DP24", "P0DP25"]
+  ```
+
+  A gene name that is not a list is unaffected, and nothing in the header is lost either
+  way.
 - A decoy or contaminant tag in front of the identifier keeps the target's accession
   (`DECOY_NP_000549.1`), as it does for pipe-delimited identifiers.
 - Any other first word is an identifier only: `accession` stays `None` and no description

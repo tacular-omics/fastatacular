@@ -159,6 +159,12 @@ importable but its names are re-exported at the top level).
 | description  | str or None      | full text after the identifier, including any KEY=value pairs          |
 | pname        | str or None      | protein name: description text before the first KEY=value              |
 | gname        | str or None      | `GN=` gene name                                                         |
+
+A UniParc-proteome header may put a pipe-separated list in pname, gname, or the AC=/SS=/PC=
+keys of extra ("List elements are separated by the pipe symbol '|'",
+https://www.uniprot.org/help/fasta-headers). Such a value is kept whole, never split:
+GN=CALM1|CALM2|CALM3 gives gname "CALM1|CALM2|CALM3". Split it yourself with
+entry.gname.split("|").
 | os_name      | str or None      | `OS=` organism name                                                     |
 | ncbi_tax_id  | int or None      | `OX=` NCBI taxonomy id                                                  |
 | pe           | int or None      | `PE=` protein existence level (1-5 in UniProt)                          |

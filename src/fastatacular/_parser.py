@@ -237,7 +237,15 @@ class _ParsedHeader:
 
 
 def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
-    """Parse a single header line into structured fields."""
+    """Parse a single header line into structured fields.
+
+    A ``KEY=value`` whose value is a list keeps that value whole. UniProt's FASTA-headers
+    help says of UniParc-proteome headers that "Lists are allowed in several fields to
+    represent paraloguous genes that encode the same sequence. List elements are separated
+    by the pipe symbol '|'", so ``GN=CALM1|CALM2|CALM3`` gives the one ``gname``
+    ``"CALM1|CALM2|CALM3"``, and ``AC=``, ``SS=`` and ``PC=`` stay whole in ``extra``.
+    Nothing splits them here; a caller that wants the elements splits on ``"|"``.
+    """
     if not line.startswith(">"):
         raise FastaParseError("Header line must start with '>'", line=line_no, context=line)
 
