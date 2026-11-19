@@ -6,6 +6,36 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- A UniRef header's `Tax=` and `TaxID=` were read into `os_name` and `ncbi_tax_id`, the
+  fields documented as the organism and its NCBI taxonomy id. UniProt defines them as
+  "the scientific name of the lowest common taxon shared by all UniRef cluster members"
+  and "the NCBI taxonomy identifier of the lowest common taxon shared by all UniRef
+  cluster members" (https://www.uniprot.org/help/fasta-headers), which is a clade, not
+  the organism of the sequence the entry carries: for `UniRef50_Q9K794` the header says
+  `TaxID=86665` while the sequence it holds is the representative member's, whose own
+  `organismTaxId` is `272558`. Both fields now stay in `extra` as `Tax` and `TaxID`,
+  beside `n` and `RepID`, and `os_name`/`ncbi_tax_id` are `None` unless the header
+  carries an explicit `OS=`/`OX=`. A rebuilt UniRef header therefore writes `Tax=` and
+  `TaxID=` again instead of converting them to `OS=`/`OX=`, so it reproduces the original
+  header, and an entry with `extra={"Tax": ...}` is now writable where it used to raise
+  `FastaWriteError`. Anyone who read `os_name` or `ncbi_tax_id` from a UniRef file since
+  1.4.0 must read `extra["Tax"]` / `extra["TaxID"]` instead; no alias was left behind.
+- A UniProt Pan-Proteome header (`>pp<taxid>|<UPI> … OX= OS=OrganismName ; db|ACC|NAME
+  ProteinName GN= PE= SV=`) read its `OS=` value to the end of the line, so `os_name`
+  came back as `Escherichia coli (strain K12) ; sp|P71242|WCAK_ECOLI Colanic acid
+  biosynthesis protein WcaK` instead of `Escherichia coli (strain K12)`. UniProt's
+  `pan_proteomes/README_pp_fasta` states that the presence of the trailing UniProtKB
+  annotation block "is also indicated by the semicolon ';' character", so the organism
+  name ends there. `GN=`, `PE=` and `SV=` from the block still fill `gname`, `pe` and
+  `sv`: the README defines them as the gene name, protein-existence level and sequence
+  version of the entry whose sequence this is. Only headers whose identifier is a
+  pan-proteome identifier are affected; every other header parses as before. Anyone who
+  read `os_name` from a pan-proteome file now gets the organism alone, which is a change
+  in output for those files. Still not read, for these headers: the block's
+  `EntryAccession`, `EntryName` and `ProteinName`, and so `pname` remains the general
+  "text before the first `KEY=`" rule — for a pan-proteome header that is the
+  ProteinFrequency, ProteomeIdentifier and SourceIdentifier tokens, not the protein
+  name the README defines inside the block.
 - An Ensembl `pep` header's `description:` field was not read, so `pname` was the whole
   `key:value` run — `pep scaffold:GRCh38:HG2290_PATCH:6058:6610:1 gene:ENSG00000282172.1
   transcript:… gene_symbol:IGKV5-2 description:immunoglobulin kappa variable 5-2

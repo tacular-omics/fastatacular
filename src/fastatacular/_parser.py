@@ -120,6 +120,16 @@ _PIPE_ID = re.compile(r"^(?P<prefix>[^|\s]+)\|(?P<accession>[^|\s]+)(?:\|.*)?$")
 # untouched and keeps its ``1MBA_A`` accession.
 _RCSB_ID = re.compile(r"^(?P<identifier>[^|\s]+)\|Chains?\s")
 
+# UniProt Pan-Proteome identifier: ``pp<taxid>|<UPI>`` (``pp562|UPI0000138ECA``), where
+# ``pp<taxid>`` is the pan-proteome of a species and the second field a UniParc id. Such a
+# header ends in an optional UniProtKB annotation block whose presence "is also indicated
+# by the semicolon ';' character", after which the keys describe that UniProtKB entry:
+# ``... OX=.. OS=OrganismName [ ; db|EntryAccession|EntryName ProteinName GN=.. PE=.. SV=..]``
+# (UniProt, pan_proteomes/README_pp_fasta, "Structure of the headers"). ``db`` is ``sp`` or
+# ``tr``, so the block is found by that shape and a ``KEY=`` value cannot run into it.
+_PAN_PROTEOME_ID = re.compile(r"^pp\d+\|UPI[0-9A-F]+$")
+_PAN_PROTEOME_BLOCK = re.compile(r"\s;\s(?=(?:sp|tr)\|)")
+
 # Identifiers that are a bare accession, with no ``db|`` prefix. Each may carry a
 # decoy/contaminant prefix (``_TAGS``), which is not part of the accession, and each
 # names the database whose description conventions the rest of the header follows
@@ -264,7 +274,13 @@ def _parse_header_line(line: str, line_no: int) -> _ParsedHeader:
     if not rest:
         return header
 
-    first_match_start, pairs = _split_kv(rest)
+    if _PAN_PROTEOME_ID.match(identifier) and (block := _PAN_PROTEOME_BLOCK.search(rest)):
+        # Pan-Proteome header: the semicolon ends the organism name and introduces the
+        # keys of the representative UniProtKB entry, so each side is scanned on its own.
+        first_match_start, pairs = _split_kv(rest[: block.start()])
+        pairs = [*pairs, *_split_kv(rest[block.end() :])[1]]
+    else:
+        first_match_start, pairs = _split_kv(rest)
     seen: set[str] = set()
     for key, value in pairs:
         # A repeated key keeps its first value (``OS=Human OS=Mouse`` gives ``Human``);
@@ -322,24 +338,14 @@ def _read_database_conventions(header: _ParsedHeader, kind: str) -> None:
       with no ``description:`` keeps the general rule, so its ``pname`` is the whole
       ``key:value`` run: the documented ``pep`` fields hold no name, and writing one back
       would need the writer to emit ``description:`` too.
-    - ``uniref``: the organism is ``Tax=`` and its NCBI taxonomy id ``TaxID=``, which move
-      out of ``extra`` the way ``OS=`` and ``OX=`` never enter it. ``n=`` (cluster size)
-      and ``RepID=`` (the representative member's entry name) stay in ``extra``.
+    - ``uniref``: nothing. ``Tax=`` and ``TaxID=`` are "the lowest common taxon shared by
+      all UniRef cluster members", not the organism of the sequence the entry carries, so
+      they stay in ``extra`` beside ``n=`` (cluster size) and ``RepID=`` (the
+      representative member's entry name).
 
-    An explicit UniProt key wins over all of these, and a ``TaxID=`` that is not an
-    integer stays in ``extra``, as a non-integer ``OX=`` does.
+    An explicit UniProt key wins over all of these.
     """
-    if kind == "uniref":
-        if header.os_name is None and "Tax" in header.extra:
-            header.os_name = header.extra.pop("Tax")
-        if header.ncbi_tax_id is None and "TaxID" in header.extra:
-            try:
-                header.ncbi_tax_id = int(header.extra["TaxID"])
-            except ValueError:
-                pass
-            else:
-                del header.extra["TaxID"]
-    elif kind == "ensembl":
+    if kind == "ensembl":
         if header.gname is None and (m := _ENSEMBL_GENE_SYMBOL.search(header.description or "")):
             header.gname = m["gname"]
         if name := _ENSEMBL_DESCRIPTION.search(header.description or ""):
