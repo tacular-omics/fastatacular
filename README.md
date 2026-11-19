@@ -134,8 +134,8 @@ Each entry is a `SequenceEntry`:
 | `description` | `str \| None` | Header text after the identifier, including any `KEY=value` pairs |
 | `pname` | `str \| None` | Protein name (the description before its first `KEY=value` pair) |
 | `gname` | `str \| None` | Gene name (`GN=`, or Ensembl's `gene_symbol:`) |
-| `os_name` | `str \| None` | Organism name (`OS=`, UniRef's `Tax=`, or the trailing `[Homo sapiens]` of an NCBI defline) |
-| `ncbi_tax_id` | `int \| None` | NCBI taxonomy ID (`OX=`, or UniRef's `TaxID=`) |
+| `os_name` | `str \| None` | Organism name (`OS=`, or the trailing `[Homo sapiens]` of an NCBI defline) |
+| `ncbi_tax_id` | `int \| None` | NCBI taxonomy ID (`OX=`) |
 | `pe` | `int \| None` | Protein existence level (`PE=`) |
 | `sv` | `int \| None` | Sequence version (`SV=`) |
 | `extra` | `dict[str, str]` | Any other `KEY=value` pairs found in the header |
@@ -185,9 +185,9 @@ ensembl.gname        # "HBA1" (from gene_symbol:)
 [uniref] = read_fasta("uniref90.fasta")
 # >UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN
 uniref.accession     # "UniRef90_P69905"
-uniref.os_name       # "Primates" (from Tax=)
-uniref.ncbi_tax_id   # 9443 (from TaxID=)
-uniref.extra         # {"n": "12", "RepID": "HBA_HUMAN"}
+uniref.os_name       # None: Tax= is the cluster's lowest common taxon,
+uniref.ncbi_tax_id   # None: not the organism of this sequence
+uniref.extra         # {"n": "12", "Tax": "Primates", "TaxID": "9443", "RepID": "HBA_HUMAN"}
 ```
 
 Only what each format defines is parsed, and an explicit UniProt key always wins:

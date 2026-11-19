@@ -334,23 +334,23 @@ def test_ncbi_defline_rebuild_writes_the_organism_as_a_key():
     assert (again.accession, again.os_name, again.gname) == ("NP_000549.1", "Homo sapiens", "HBA1")
 
 
-def test_uniref_rebuild_writes_uniprot_keys():
-    """``Tax=``/``TaxID=`` are rebuilt as ``OS=``/``OX=``; ``n=`` and ``RepID=`` stay as they are."""
+def test_uniref_rebuild_keeps_the_cluster_keys():
+    """A rebuilt UniRef header writes ``n=``, ``Tax=``, ``TaxID=`` and ``RepID=`` as themselves."""
     header = ">UniRef90_P69905 Hemoglobin subunit alpha n=12 Tax=Primates TaxID=9443 RepID=HBA_HUMAN"
     [parsed] = read_fasta(io.StringIO(f"{header}\nMVLS\n"))
     rebuilt = _write_str([dataclasses.replace(parsed, raw_header="", description=None)], line_width=0)
-    assert rebuilt.splitlines()[0] == (
-        ">UniRef90_P69905 Hemoglobin subunit alpha OS=Primates OX=9443 n=12 RepID=HBA_HUMAN"
-    )
+    # None of the four is a typed field, so the rebuild is the original header again.
+    assert rebuilt.splitlines()[0] == header
 
 
-def test_uniref_extra_tax_key_that_would_not_read_back_raises():
-    """``extra={"Tax": ...}`` on a UniRef id is the organism on read, as ``OS=`` would be."""
+def test_uniref_extra_tax_key_round_trips():
+    """``extra={"Tax": ...}`` on a UniRef id is written and read back as ``extra``."""
     entry = SequenceEntry(identifier="UniRef90_P69905", sequence="MVLS", extra={"Tax": "Primates"})
-    with pytest.raises(FastaWriteError) as exc:
-        _write_str([entry])
-    assert exc.value.index == 0
-    assert "Tax" in str(exc.value)
+    written = _write_str([entry])
+    assert written == ">UniRef90_P69905 Tax=Primates\nMVLS\n"
+    [back] = read_fasta(io.StringIO(written))
+    assert back.extra == {"Tax": "Primates"}
+    assert back.os_name is None
 
 
 def test_old_pdb_pipe_form_rebuild_unchanged():

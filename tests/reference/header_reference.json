@@ -110,13 +110,15 @@
     "accession": "UniRef50_Q9K794",
     "entry_name": null,
     "pname": "Putative AgrB-like protein",
-    "os_name": "Bacillus",
-    "ncbi_tax_id": 1386,
+    "os_name": null,
+    "ncbi_tax_id": null,
     "gname": null,
     "pe": null,
     "sv": null,
     "extra": {
      "n": "2",
+     "Tax": "Bacillus",
+     "TaxID": "1386",
      "RepID": "AGRB_BACHD"
     },
     "identifier": "UniRef50_Q9K794"
