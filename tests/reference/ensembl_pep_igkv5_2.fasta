@@ -1,0 +1,6 @@
+; Ensembl human peptide FASTA, one entry, fetched 2026-11-17 from
+; https://ftp.ensembl.org/pub/current_fasta/homo_sapiens/pep/Homo_sapiens.GRCh38.pep.all.fa.gz
+; Format: https://ftp.ensembl.org/pub/current_fasta/homo_sapiens/pep/README
+>ENSP00000487796.1 pep scaffold:GRCh38:HG2290_PATCH:6058:6610:1 gene:ENSG00000282172.1 transcript:ENST00000632585.1 gene_biotype:IG_V_gene transcript_biotype:IG_V_gene gene_symbol:IGKV5-2 description:immunoglobulin kappa variable 5-2 [Source:HGNC Symbol;Acc:HGNC:5835]
+MGSQVHLLSFLLLWISDTRAETTLTQSPAFMSATPGDKVNISCKASQDIDDDMNWYQQKP
+GEAAIFIIQEATTLVPGIPPRFSGSGYGTDFTLTINNIESEDAAYYFCLQHDNFP

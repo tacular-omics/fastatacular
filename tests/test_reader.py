@@ -233,17 +233,28 @@ def test_ncbi_bare_accession_boundary(header: str, accession: str | None, os_nam
 
 
 def test_ensembl_pep_fields():
-    """The Ensembl ``pep`` header from issue #37: ``gene_symbol:`` is the gene name."""
+    """The Ensembl ``pep`` header from issue #37: ``gene_symbol:`` and ``description:``.
+
+    The header below is **constructed**, not a file line: it is the issue-#37 example with
+    a real ``description:`` appended, and today's file has ``gene:ENSG00000206172.10``.
+    The two expected values are Ensembl's own, from
+    ``rest.ensembl.org/lookup/id/ENSG00000206172`` on 2026-11-17: ``description`` =
+    "hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]" (a gene description)
+    and ``display_name`` = "HBA1". A file-line fixture is
+    ``tests/reference/ensembl_pep_igkv5_2.fasta``.
+    """
     header = (
         ">ENSP00000322421.5 pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG00000206172.8 "
-        "transcript:ENST00000320868.9 gene_biotype:protein_coding gene_symbol:HBA1"
+        "transcript:ENST00000320868.9 gene_biotype:protein_coding gene_symbol:HBA1 "
+        "description:hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]"
     )
     [e] = _read_str(f"{header}\nMVLSPADKTN\n")
     assert e.accession == "ENSP00000322421.5"
     assert e.gname == "HBA1"
-    # Ensembl writes ``key:value``, so the whole description is the name text, and the
-    # gene and transcript ids have no field of their own.
-    assert e.pname == e.description == header[1:].split(maxsplit=1)[1]
+    assert e.pname == "hemoglobin subunit alpha 1 [Source:HGNC Symbol;Acc:HGNC:4823]"
+    # ``description`` still holds the whole line; the location and the gene and
+    # transcript ids have no field of their own.
+    assert e.description == header[1:].split(maxsplit=1)[1]
     assert (e.os_name, e.ncbi_tax_id, e.extra) == (None, None, {})
 
 
@@ -579,3 +590,36 @@ def test_pan_proteome_organism_stops_at_the_annotation_block() -> None:
     assert entry.ncbi_tax_id == 83333
     assert (entry.gname, entry.pe, entry.sv) == ("wcaK", 3, 2)
     assert entry.extra == {}
+
+
+def test_ensembl_pep_pname_is_the_description_field() -> None:
+    """An Ensembl ``pep`` header's protein name is its ``description:`` field.
+
+    Outside-sourced. The fixture is one entry of
+    ``Homo_sapiens.GRCh38.pep.all.fa.gz`` fetched 2026-11-17. Ensembl's pep ``README``
+    documents seven fields and mentions neither ``gene_symbol:`` nor ``description:``;
+    what specifies them is the dumper that writes these files, ``DumpFile.pm`` in
+    ensembl-production, whose ``_create_display_id`` emits
+    ``qw/gene transcript gene_biotype transcript_biotype gene_symbol description/`` and
+    sets ``$attributes{description} = $gene->description``.
+
+    So the value is the **gene's** description, which is what this asserts: from
+    ``rest.ensembl.org/lookup/id/ENSG00000282172`` the same day, ``description`` =
+    "immunoglobulin kappa variable 5-2 [Source:HGNC Symbol;Acc:HGNC:5835]" and
+    ``display_name`` = "IGKV5-2". Putting a gene description in ``pname`` is this
+    package's reading, not Ensembl's wording: a ``pep`` header carries no protein name.
+    """
+    path = Path(__file__).parent / "reference" / "ensembl_pep_igkv5_2.fasta"
+    (entry,) = read_fasta(path)
+
+    assert entry.accession == "ENSP00000487796.1"
+    # rest.ensembl.org lookup of the gene in the header: description, then display_name
+    assert entry.pname == "immunoglobulin kappa variable 5-2 [Source:HGNC Symbol;Acc:HGNC:5835]"
+    assert entry.gname == "IGKV5-2"
+    # The location and the gene/transcript ids are not a protein name and stay unread.
+    assert "scaffold:GRCh38" not in (entry.pname or "")
+    assert entry.os_name is None
+    assert entry.extra == {}
+    # description still holds the whole line after the identifier.
+    assert entry.description is not None
+    assert entry.description.startswith("pep scaffold:GRCh38:HG2290_PATCH:6058:6610:1")

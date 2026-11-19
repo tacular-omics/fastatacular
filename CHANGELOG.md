@@ -36,6 +36,28 @@ All notable changes to this project will be documented in this file.
   "text before the first `KEY=`" rule — for a pan-proteome header that is the
   ProteinFrequency, ProteomeIdentifier and SourceIdentifier tokens, not the protein
   name the README defines inside the block.
+- An Ensembl `pep` header's `description:` field was not read, so `pname` was the whole
+  `key:value` run — `pep scaffold:GRCh38:HG2290_PATCH:6058:6610:1 gene:ENSG00000282172.1
+  transcript:… gene_symbol:IGKV5-2 description:immunoglobulin kappa variable 5-2
+  [Source:HGNC Symbol;Acc:HGNC:5835]` instead of the protein name alone (#65). `pname` is
+  now the `description:` value, which `rest.ensembl.org/lookup/id/ENSG00000282172` returns
+  verbatim as that gene's `description`. Ensembl's dumper writes that field from
+  `$gene->description` (`DumpFile.pm`, `_create_display_id`), so it is a **gene**
+  description, `[Source:...;Acc:...]` suffix included, and putting it in `pname` is this
+  package's reading of the only name text a `pep` header carries, not Ensembl's wording.
+  `description` still holds the whole line, and the location and the gene and transcript
+  ids are still read into no field.
+  **Not covered:** a `pep` header with no `description:` field (214 of the 382,428 headers
+  of the current human `pep.all` release — ordinary entries whose gene has no description,
+  not the separate ab initio file) keeps the general
+  rule, so its `pname` is still the `key:value` run. Ensembl's documented `pep` fields
+  hold no name, so the faithful value there is `None`, but making it `None` also makes
+  `write_fasta` raise `FastaWriteError` on any Ensembl entry rebuilt from fields without a
+  `raw_header` (the rebuild writes the name as bare text, which the reader would then no
+  longer read back as a name), so it needs the writer to emit `description:` as well. That
+  is left out of this patch.
+  Anyone who read `pname` from an Ensembl `pep` file gets the protein name instead of the
+  whole header text from now on.
 
 ## [1.5.1] (2026-11-16)
 

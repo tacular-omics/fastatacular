@@ -502,15 +502,16 @@ def templated_headers(draw: st.DrawFn) -> tuple[str, dict[str, Any]]:
         acc = f"ENSP{draw(st.from_regex(r'\A[0-9]{11}\Z'))}.{draw(st.integers(1, 9))}"
         symbol = draw(st.from_regex(r"\A[A-Za-z0-9-]{1,10}\Z"))
         gene, transcript = draw(st.from_regex(r"\A[0-9]{11}\Z")), draw(st.from_regex(r"\A[0-9]{11}\Z"))
-        # Ensembl ``pep`` headers use ``key:value``, not ``KEY=value``, so the whole
-        # description is the name text; only ``gene_symbol:`` names a field.
-        pname = (
+        # Ensembl ``pep`` headers use ``key:value``, not ``KEY=value``. Of those tokens
+        # only ``gene_symbol:`` and ``description:`` name a field; the location and the
+        # gene and transcript ids do not, so they are in ``description`` alone.
+        text = (
             f"pep chromosome:GRCh38:16:176680:177522:1 gene:ENSG{gene}.8 transcript:ENST{transcript}.9 "
-            f"gene_biotype:protein_coding gene_symbol:{symbol}"
+            f"gene_biotype:protein_coding gene_symbol:{symbol} description:{name}"
         )
         ident = tag + acc
-        expected |= {"accession": acc, "pname": pname, "gname": symbol}
-        return f">{ident} {pname}", {"identifier": ident, **expected}
+        expected |= {"accession": acc, "pname": name, "gname": symbol}
+        return f">{ident} {text}", {"identifier": ident, **expected}
     if style == "uniref":
         acc = f"UniRef{draw(st.sampled_from(['50', '90', '100']))}_{draw(uniprot_acc)}"
         ident = tag + acc
